@@ -278,6 +278,8 @@ function render(st) {
     }).join('')
     : '<li class="empty">Aún no hay recargas registradas.</li>';
   $('#rec-tot').textContent = recs.length ? `+${n1(recs.reduce((s, r) => s + Number(r.kwh || 0), 0), 1)} kWh` : '—';
+  const servRec = $('#serv-rec-tot');
+  if (servRec) servRec.textContent = recs.length ? `${recs.length} recarga${recs.length === 1 ? '' : 's'}` : 'sin recargas';
 
   // Servicios: tarifa y cliente
   const esc = st.escala || [];
