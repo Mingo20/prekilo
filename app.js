@@ -90,7 +90,10 @@ let TIP_T = null;   // temporizador del globo del grafico
    es la que el medidor esta gastando (saldo activo) y el resto espera turno. */
 function bucketsDe(st) {
   const base = [{ kwh: Number((st.ancla || {}).kwh || 0), fecha: String((st.ancla || {}).ts || '').slice(0, 10), ts: String((st.ancla || {}).ts || ''), tipo: 'inicial' }];
-  const recs = (st.recargas || []).map((r) => ({ kwh: Number(r.kwh || 0), fecha: String(r.fecha || '').slice(0, 10), ts: String(r.fecha || ''), tipo: 'recarga', monto: r.monto_rd || 0 }));
+  const tsAncla = String((st.ancla || {}).ts || '');
+  const recs = (st.recargas || [])
+    .filter((r) => String(r.fecha || '') > tsAncla)
+    .map((r) => ({ kwh: Number(r.kwh || 0), fecha: String(r.fecha || '').slice(0, 10), ts: String(r.fecha || ''), tipo: 'recarga', monto: r.monto_rd || 0 }));
   const lista = base.concat(recs).filter((b) => b.kwh > 0);
   let consumo = Number(st.consumido_desde_ancla || 0);
   let activo = 0, transito = 0, bucketKwh = 0, asignado = false;
@@ -174,7 +177,7 @@ function render(st) {
   const markPct = Math.max(1, Math.min(99, (umbral / baseBarra) * 100));
   $('#bar-mark').style.left = markPct + '%';
   $('#bar-left').textContent = Math.round(pct) + '% restante';
-  $('#bar-right').textContent = `de ${n1(baseBarra, 0)} kWh recargados`;
+  $('#bar-right').textContent = `de ${n1(baseBarra, 1)} kWh recargados`;
 
   const cajaT = $('#transito-box');
   if (cajaT) {

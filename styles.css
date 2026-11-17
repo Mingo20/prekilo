@@ -362,3 +362,5 @@ body{background:var(--bg);color:var(--txt)}
 .badge.on{background:rgba(255,106,19,.14);color:var(--lime-d)}
 .badge.wait{background:rgba(11,37,69,.10);color:#0B2545}
 .badge.done{background:rgba(97,116,143,.14);color:var(--muted)}
+
+#sync-line,#sync-line[hidden]{display:none!important}
