@@ -269,7 +269,8 @@ function render(st) {
   lr.innerHTML = recs.length
     ? recs.map((r) => {
       const cubo = bk.detalle.find((x) => x.tipo === 'recarga' && x.ts === r.fecha);
-      const est = cubo ? cubo.estado : 'consumida';
+      const tsAncla = String((st.ancla || {}).ts || '');
+      const est = cubo ? cubo.estado : (String(r.fecha || '') <= tsAncla && bk.activo > 0.01 ? 'en uso' : 'consumida');
       const badge = est === 'en uso' ? '<em class="badge on">en uso</em>'
         : est === 'en tránsito' ? '<em class="badge wait">en tránsito</em>'
         : '<em class="badge done">consumida</em>';
