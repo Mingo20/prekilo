@@ -686,7 +686,7 @@ function renderRec7(st) {
       <div class="bar-v rec" style="height:${h}px"></div>
       <span class="lbl">${dia}</span></div>`;
   }).join('');
-  if (tot) tot.textContent = `${recs.length} recargas · ${n1(recs.reduce((s, r) => s + Number(r.kwh || 0), 0), 1)} kWh en total`;
+  if (tot) tot.textContent = `${recs.length} ${recs.length===1?'recarga':'recargas'} · ${n1(recs.reduce((s, r) => s + Number(r.kwh || 0), 0), 1)} kWh en total`;
   bindBars(cont);
 }
 
