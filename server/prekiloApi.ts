@@ -395,6 +395,17 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...r, vapid_public: VAPID_PUBLIC });
     }
 
+    if (action === 'pushCheck') {
+      try {
+        const webpush: any = (await import('npm:web-push@3.6.7')).default;
+        webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+        const subs = await base44.asServiceRole.entities.PkSuscripcion.filter({ activa: true }, { limit: 50 });
+        return json({ ok: true, webpush: 'cargado', suscripciones: (subs?.items ?? []).length, vapor: VAPID_PUBLIC.slice(0, 12) });
+      } catch (e: any) {
+        return json({ ok: false, error: 'web-push fallo: ' + String(e?.message || e) }, 500);
+      }
+    }
+
     if (action === 'vapid') {
       return json({ ok: true, vapid_public: VAPID_PUBLIC, nic: NIC });
     }

@@ -415,6 +415,28 @@ async function yaSuscrito() {
   } catch { return false; }
 }
 
+
+/* ---------------- Instalación (PWA) ---------------- */
+let INSTALL_EVT = null;
+const esStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  INSTALL_EVT = e;
+  mostrarInstall();
+});
+function mostrarInstall() {
+  if (esStandalone()) return;
+  const el = $('#install');
+  if (!el) return;
+  const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (!INSTALL_EVT && !esIOS) return;
+  el.hidden = false;
+  if (esIOS) {
+    $('#install-p').textContent = 'En iPhone: Compartir → Añadir a pantalla de inicio.';
+    $('#btn-install').textContent = 'Cómo';
+  }
+}
+
 /* ---------------- Navegación ---------------- */
 function go(view) {
   $$('.view').forEach((v) => v.classList.toggle('is-active', v.id === 'view-' + view));
@@ -475,6 +497,21 @@ function wire() {
 
   $('#btn-push').addEventListener('click', activarPush);
 
+  const bi = $('#btn-install');
+  if (bi) {
+    bi.addEventListener('click', async () => {
+      if (INSTALL_EVT) {
+        INSTALL_EVT.prompt();
+        const r = await INSTALL_EVT.userChoice;
+        if (r.outcome === 'accepted') { $('#install').hidden = true; toast('Prekilo instalada'); }
+        INSTALL_EVT = null;
+      } else {
+        toast('Compartir → Añadir a pantalla de inicio');
+      }
+    });
+  }
+
+
   $('#btn-limpiar').addEventListener('click', async () => {
     await kvClear();
     toast('Datos locales borrados');
@@ -506,5 +543,6 @@ function wire() {
 
   await cargar('state', true);
   pushUI();
+  mostrarInstall();
   setInterval(() => { if (navigator.onLine) cargar('state', true); }, REFRESH_MS);
 })();

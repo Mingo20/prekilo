@@ -76,6 +76,16 @@ main{padding:6px 16px 110px;display:block}
   border-radius:var(--r);padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
 .card-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px}
 
+
+/* ---------- instalar ---------- */
+.install{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:12px;
+  border-radius:16px;background:linear-gradient(120deg,rgba(198,255,61,.14),rgba(198,255,61,.03));
+  border:1px solid rgba(198,255,61,.28)}
+.install[hidden]{display:none}
+.install strong{display:block;font-size:13.5px}
+.install p{margin-top:1px}
+.install .btn{width:auto;flex:0 0 auto}
+
 /* ---------- hero ---------- */
 .hero{position:relative;overflow:hidden;padding:16px 16px 14px}
 .hero:before{content:"";position:absolute;inset:-40% -30% auto;height:220px;
