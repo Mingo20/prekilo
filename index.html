@@ -246,6 +246,11 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<div id="dbg" style="display:none;position:fixed;bottom:70px;left:8px;right:8px;z-index:99;background:#2a0d10;color:#ffb3ba;font:11px monospace;padding:8px;border-radius:8px;white-space:pre-wrap;max-height:40vh;overflow:auto"></div>
+<script>
+window.addEventListener('error',function(e){var d=document.getElementById('dbg');if(d){d.textContent='ERR: '+(e.message||e.type)+' @'+(e.filename||'').split('/').pop()+':'+(e.lineno||'');d.style.display='block';}});
+window.addEventListener('unhandledrejection',function(e){var d=document.getElementById('dbg');if(d){d.textContent='REJ: '+((e.reason&&(e.reason.message||e.reason))||'');d.style.display='block';}});
+</script>
 <script src="app.js" defer></script>
 </body>
 </html>

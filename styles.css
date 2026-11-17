@@ -108,6 +108,7 @@ main{padding:6px 16px 110px;display:block}
 .chip strong{font-size:17px;font-variant-numeric:tabular-nums}
 
 /* ---------- aviso ---------- */
+.alert[hidden]{display:none}
 .alert{display:flex;gap:10px;align-items:flex-start;padding:13px 14px;border-radius:16px;margin-bottom:12px;
   background:linear-gradient(120deg,rgba(255,176,32,.14),rgba(255,77,94,.08));border:1px solid rgba(255,176,32,.3)}
 .alert.crit{background:linear-gradient(120deg,rgba(255,77,94,.18),rgba(255,77,94,.07));border-color:rgba(255,77,94,.42)}
