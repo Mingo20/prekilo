@@ -148,7 +148,7 @@ function computeState(opts: {
 
   // 3) lo que aun no esta medido: desde el corte de medicion hasta ahora
   const lastMeasured = medidos.length ? medidos[medidos.length - 1][0] : anchorDate;
-  const coveredEnd = medidos.some(([f]) => f > anchorDate) ? addDays(lastMeasured, 1) + 'T00:00:00' : anchor.ts;
+  const coveredEnd = (lastMeasured && lastMeasured >= anchorDate) ? addDays(lastMeasured, 1) + 'T00:00:00' : anchor.ts;
   const desde = coveredEnd > anchor.ts ? coveredEnd : anchor.ts;
   const horasEstimadas = Math.max(0, hoursBetween(desde, ahora));
   const estimado = dailyAvg * (horasEstimadas / 24);

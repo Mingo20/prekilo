@@ -295,3 +295,70 @@ input[type=number]:focus{outline:none;border-color:rgba(198,255,61,.5);box-shado
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
+
+/* ================= TEMA edeKilo (colores Edesur) ================= */
+:root{
+  --bg:#EDF2F8; --bg2:#E4EBF4; --card:#FFFFFF; --card2:#FFFFFF;
+  --line:rgba(11,37,69,.12); --line2:rgba(11,37,69,.26);
+  --txt:#0B2545; --muted:#61748F;
+  --lime:#FF6A13; --lime-d:#E25407;
+  --amber:#E8890C; --red:#D6382A; --blue:#0B2545;
+  --shadow:0 16px 34px -24px rgba(11,37,69,.55);
+}
+body{background:var(--bg);color:var(--txt)}
+.glow{background:radial-gradient(60% 60% at 50% 0%,rgba(255,106,19,.16),transparent 70%)}
+.topbar{background:linear-gradient(180deg,#fff 62%,rgba(255,255,255,.86) 84%,transparent)}
+.mark{background:linear-gradient(150deg,#FF8A3D,var(--lime));color:#fff;box-shadow:0 8px 20px -12px rgba(255,106,19,.9)}
+.card{background:#fff;border:1px solid var(--line);box-shadow:var(--shadow)}
+.hero:before{background:radial-gradient(50% 60% at 70% 0%,rgba(255,106,19,.13),transparent 72%)}
+.kwh{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--txt);-webkit-text-fill-color:var(--txt)}
+.hero.is-warn .kwh{background:none;color:var(--amber);-webkit-text-fill-color:var(--amber)}
+.hero.is-bad .kwh{background:none;color:var(--red);-webkit-text-fill-color:var(--red)}
+.pill{background:rgba(255,106,19,.10);color:var(--lime-d);border-color:rgba(255,106,19,.30)}
+.pill.warn{background:rgba(232,137,12,.12);color:var(--amber);border-color:rgba(232,137,12,.32)}
+.pill.bad{background:rgba(214,56,42,.10);color:var(--red);border-color:rgba(214,56,42,.32)}
+.bar{background:rgba(11,37,69,.10)}
+.bar-mark{background:rgba(11,37,69,.5)}
+.chip{background:#F5F8FC}
+.alert{background:linear-gradient(120deg,rgba(232,137,12,.12),rgba(214,56,42,.06));border-color:rgba(232,137,12,.32)}
+.alert.crit{background:linear-gradient(120deg,rgba(214,56,42,.14),rgba(214,56,42,.05));border-color:rgba(214,56,42,.4)}
+.btn.primary{background:linear-gradient(180deg,#FF8A3D,var(--lime));color:#fff;box-shadow:0 12px 24px -14px rgba(255,106,19,.9)}
+.btn.ghost,.icon-btn,.tag{background:#F2F6FB;color:var(--txt);border-color:var(--line2)}
+.tabbar{grid-template-columns:repeat(4,1fr);background:rgba(255,255,255,.97);border-top:1px solid var(--line);box-shadow:0 -8px 24px -18px rgba(11,37,69,.5)}
+.tab{color:var(--muted)}
+.tab.is-active{color:var(--lime)}
+.toast{background:#0B2545;color:#fff;border-color:transparent}
+.spark .bar-v{background:linear-gradient(180deg,var(--lime),rgba(255,106,19,.35))}
+.spark .bar-v.fin{background:linear-gradient(180deg,#0B2545,rgba(11,37,69,.4))}
+.chart .cb{background:linear-gradient(180deg,rgba(11,37,69,.85),rgba(11,37,69,.35))}
+.chart .cb.fin{background:linear-gradient(180deg,rgba(255,106,19,.95),rgba(255,106,19,.4))}
+.chart .cb.max{background:linear-gradient(180deg,#FF6A13,#E25407)}
+.chart .cb.on{outline:2px solid #0B2545;outline-offset:1px}
+.rail{background:#fff;border-right:1px solid var(--line)}
+@media (min-width:900px){.rail{background:#fff}}
+
+/* ---- balance en tránsito ---- */
+.transito{display:flex;align-items:center;gap:9px;margin:10px 0 2px;padding:9px 11px;border-radius:13px;
+  background:rgba(255,106,19,.09);border:1px solid rgba(255,106,19,.28)}
+.transito[hidden]{display:none}
+.transito .dot-t{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 4px rgba(255,106,19,.16);flex:0 0 9px}
+.transito strong{display:block;font-size:13px}
+.transito small{display:block;font-size:11px;line-height:1.3}
+
+/* ---- valores al tocar las barras ---- */
+.spark .b{position:relative;touch-action:pan-y}
+.spark .bv{position:absolute;left:50%;transform:translate(-50%,-4px);bottom:100%;opacity:0;pointer-events:none;
+  background:#0B2545;color:#fff;font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:8px;white-space:nowrap}
+.spark .b.on .bv{opacity:1;bottom:calc(100% + 2px)}
+.spark .b.on .bar-v{filter:brightness(1.06)}
+.tip{position:absolute;top:2px;transform:translateX(-50%);background:#0B2545;color:#fff;font-size:11px;
+  padding:6px 9px;border-radius:9px;pointer-events:none;z-index:5;text-align:center;line-height:1.25}
+.tip[hidden]{display:none}
+.tip strong{display:block;font-size:13px}
+.tip span{display:block;font-size:10px;opacity:.8}
+.chart-wrap{position:relative}
+#chart30{touch-action:pan-y}
+.badge{font-style:normal;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;margin-left:6px}
+.badge.on{background:rgba(255,106,19,.14);color:var(--lime-d)}
+.badge.wait{background:rgba(11,37,69,.10);color:#0B2545}
+.badge.done{background:rgba(97,116,143,.14);color:var(--muted)}

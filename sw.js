@@ -1,4 +1,4 @@
-/* Prekilo · Service Worker
+/* edeKilo · Service Worker
    Cachea la app para que funcione sin internet y recibe las notificaciones push. */
 const VERSION = 'prekilo-v1';
 const SHELL = [
@@ -66,7 +66,7 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let data = {};
   try { data = e.data ? e.data.json() : {}; } catch (_) { data = { body: e.data ? e.data.text() : '' }; }
-  const title = data.title || 'Prekilo';
+  const title = data.title || 'edeKilo';
   const body = data.body || 'Revisa tu saldo de energía.';
   e.waitUntil(
     self.registration.showNotification(title, {

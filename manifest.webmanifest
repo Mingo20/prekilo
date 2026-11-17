@@ -1,6 +1,6 @@
 {
-  "name": "Prekilo · Energía prepago",
-  "short_name": "Prekilo",
+  "name": "edeKilo · Energía prepago",
+  "short_name": "edeKilo",
   "description": "Tus kilovatios disponibles de Edesur en grande, con días y horas de luz restantes.",
   "start_url": "./",
   "scope": "./",

@@ -1,4 +1,4 @@
-/* Prekilo · PWA de energía prepago (Edesur)
+/* edeKilo · PWA de energía prepago (Edesur)
    Backend Deno: Base44 function prekiloApi
    Local: IndexedDB para funcionar sin internet */
 'use strict';
@@ -82,6 +82,32 @@ async function api(action, extra = {}) {
 
 /* ---------------- Estado ---------------- */
 let STATE = null;        // último estado del servidor
+let C30 = [];       // datos del grafico de 30 dias
+let SPARK_T = null; // temporizador del globo del sparkline
+let TIP_T = null;   // temporizador del globo del grafico
+
+/* Reparte el consumo entre las recargas en orden: la primera que queda viva
+   es la que el medidor esta gastando (saldo activo) y el resto espera turno. */
+function bucketsDe(st) {
+  const base = [{ kwh: Number((st.ancla || {}).kwh || 0), fecha: String((st.ancla || {}).ts || '').slice(0, 10), ts: String((st.ancla || {}).ts || ''), tipo: 'inicial' }];
+  const recs = (st.recargas || []).map((r) => ({ kwh: Number(r.kwh || 0), fecha: String(r.fecha || '').slice(0, 10), ts: String(r.fecha || ''), tipo: 'recarga', monto: r.monto_rd || 0 }));
+  const lista = base.concat(recs).filter((b) => b.kwh > 0);
+  let consumo = Number(st.consumido_desde_ancla || 0);
+  let activo = 0, transito = 0, bucketKwh = 0, asignado = false;
+  const detalle = lista.map((b) => {
+    const usado = Math.min(b.kwh, Math.max(0, consumo));
+    consumo -= usado;
+    const resta = Math.max(0, b.kwh - usado);
+    let estado = 'consumida';
+    if (resta > 0.01) {
+      if (!asignado) { estado = 'en uso'; activo = resta; bucketKwh = b.kwh; asignado = true; }
+      else { estado = 'en tránsito'; transito += resta; }
+    }
+    return Object.assign({}, b, { restante: resta, estado });
+  });
+  return { activo, transito, total: activo + transito, bucketKwh, detalle };
+}
+
 let EXPIRA = null;       // instante estimado de agotamiento
 let OFFLINE = false;
 
@@ -119,10 +145,11 @@ function setConn(mode, txt) {
 
 /* ---------------- Render ---------------- */
 function render(st) {
+  const bk = bucketsDe(st);
   if (!st) return;
   STATE = st;
 
-  const saldo = Number(st.saldo_kwh ?? 0);
+  const saldo = bk.activo;
   const prom = Number(st.promedio_diario ?? 3.26);
   const umbral = Number(st.umbral ?? 6);
   const habitual = Number(st.recarga_habitual ?? 16);
@@ -140,16 +167,28 @@ function render(st) {
     ? `por debajo de tu umbral de ${n1(umbral, 1)} kWh`
     : 'disponibles ahora';
 
-  const pct = Math.max(0, Math.min(100, (saldo / (habitual || 16)) * 100));
+  const baseBarra = bk.bucketKwh || habitual || 16;
+  const pct = Math.max(0, Math.min(100, (bk.activo / baseBarra) * 100));
   $('#bar-fill').style.width = pct.toFixed(2) + '%';
   $('#bar').setAttribute('aria-valuenow', pct.toFixed(1));
-  const markPct = Math.max(1, Math.min(99, (umbral / (habitual || 16)) * 100));
+  const markPct = Math.max(1, Math.min(99, (umbral / baseBarra) * 100));
   $('#bar-mark').style.left = markPct + '%';
   $('#bar-left').textContent = Math.round(pct) + '% restante';
-  $('#bar-right').textContent = `de ${n1(habitual, 0)} kWh recargados`;
+  $('#bar-right').textContent = `de ${n1(baseBarra, 0)} kWh recargados`;
 
-  $('#dias').textContent = n1(st.dias_restantes, 1);
-  $('#horas').textContent = n1(st.horas_restantes, 0) + ' h';
+  const cajaT = $('#transito-box');
+  if (cajaT) {
+    cajaT.hidden = bk.transito <= 0.01;
+    if (bk.transito > 0.01) {
+      $('#transito').textContent = n1(bk.transito, 1);
+      const enEspera = bk.detalle.filter((x) => x.estado === 'en tránsito').length;
+      $('#transito-p').textContent = enEspera + (enEspera === 1 ? ' recarga espera' : ' recargas esperan') + ' que se agote la actual.';
+    }
+  }
+
+  const diasTot = prom ? bk.total / prom : 0;
+  $('#dias').textContent = n1(diasTot, 1);
+  $('#horas').textContent = n1(diasTot * 24, 0) + ' h';
 
   // Aviso
   const al = $('#alerta');
@@ -172,7 +211,7 @@ function render(st) {
     : 'Estimado con tu promedio (el medidor cierra el día a las 12 a. m.).';
 
   // Cuenta regresiva
-  EXPIRA = Date.now() + Math.max(0, Number(st.horas_restantes || 0)) * 3600_000;
+  EXPIRA = Date.now() + Math.max(0, diasTot * 24) * 3600_000;
   tickCountdown();
   $('#agota-nota').textContent = `Con ${n1(prom, 2)} kWh/día de promedio real.`;
 
@@ -184,7 +223,8 @@ function render(st) {
     const d = new Date(x.fecha + 'T12:00:00');
     const fin = d.getDay() === 0 || d.getDay() === 6;
     const h = Math.max(6, (x.kwh / max7) * 76);
-    return `<div class="b" title="${fFecha(x.fecha)}: ${n1(x.kwh, 2)} kWh">
+    return `<div class="b" data-v="${n1(x.kwh, 2)}" data-l="${fFecha(x.fecha)}">
+      <span class="bv">${n1(x.kwh, 2)} kWh</span>
       <div class="bar-v${fin ? ' fin' : ''}" style="height:${h}px"></div>
       <span class="lbl">${dias[d.getDay()]}</span></div>`;
   }).join('') || '<p class="muted tiny">Sin datos todavía.</p>';
@@ -194,12 +234,13 @@ function render(st) {
   // Chart 30 días
   const c30 = (st.consumos || []).slice(0, 30).reverse();
   const max30 = Math.max(1, ...c30.map((x) => x.kwh));
-  $('#chart30').innerHTML = c30.map((x) => {
+  C30 = c30.map((x) => ({ l: fFecha(x.fecha), v: Number(x.kwh || 0) }));
+  $('#chart30').innerHTML = c30.map((x, i) => {
     const d = new Date(x.fecha + 'T12:00:00');
     const fin = d.getDay() === 0 || d.getDay() === 6;
     const h = Math.max(3, (x.kwh / max30) * 100);
     const cls = x.kwh === max30 ? ' max' : fin ? ' fin' : '';
-    return `<div class="cb${cls}" style="height:${h}%" title="${fFecha(x.fecha)}: ${n1(x.kwh, 2)} kWh"></div>`;
+    return `<div class="cb${cls}" data-i="${i}" style="height:${h}%"></div>`;
   }).join('') || '<p class="muted tiny">Sin datos todavía. Sincroniza para descargar el histórico del medidor.</p>';
 
   // KPIs promedio
@@ -223,8 +264,15 @@ function render(st) {
   const recs = st.recargas || [];
   const lr = $('#lista-recargas');
   lr.innerHTML = recs.length
-    ? recs.map((r) => `<li><span class="lft"><strong>+${n1(r.kwh, 1)} kWh</strong><small>${fFecha(r.fecha)} · ${fHora(r.fecha)}</small></span>
-        <span class="kwh-v muted">${r.monto_rd ? 'RD$ ' + fNum(r.monto_rd) : ''}</span></li>`).join('')
+    ? recs.map((r) => {
+      const cubo = bk.detalle.find((x) => x.tipo === 'recarga' && x.ts === r.fecha);
+      const est = cubo ? cubo.estado : 'consumida';
+      const badge = est === 'en uso' ? '<em class="badge on">en uso</em>'
+        : est === 'en tránsito' ? '<em class="badge wait">en tránsito</em>'
+        : '<em class="badge done">consumida</em>';
+      return `<li><span class="lft"><strong>+${n1(r.kwh, 1)} kWh${badge}</strong><small>${fFecha(r.fecha)} · ${fHora(r.fecha)}</small></span>
+        <span class="kwh-v muted">${r.monto_rd ? 'RD$ ' + fNum(r.monto_rd) : ''}</span></li>`;
+    }).join('')
     : '<li class="empty">Aún no hay recargas registradas.</li>';
   $('#rec-tot').textContent = recs.length ? `+${n1(recs.reduce((s, r) => s + Number(r.kwh || 0), 0), 1)} kWh` : '—';
 
@@ -460,6 +508,45 @@ function wire() {
   $('#btn-refresh').addEventListener('click', sincronizar);
   $('#btn-sync2').addEventListener('click', sincronizar);
 
+  // Tocar una barra de los ultimos 7 dias
+  const sp = $('#spark7');
+  if (sp) {
+    sp.addEventListener('pointerdown', (e) => {
+      const b = e.target.closest('.b');
+      if (!b) return;
+      $$('#spark7 .b').forEach((x) => x.classList.remove('on'));
+      b.classList.add('on');
+      clearTimeout(SPARK_T);
+      SPARK_T = setTimeout(() => b.classList.remove('on'), 3200);
+    });
+  }
+
+  // Pasar el dedo por el grafico de 30 dias
+  const ch = $('#chart30');
+  if (ch) {
+    const marcar = (e) => {
+      const n = C30.length;
+      if (!n) return;
+      const r = ch.getBoundingClientRect();
+      let i = Math.floor(((e.clientX - r.left) / r.width) * n);
+      i = Math.max(0, Math.min(n - 1, i));
+      const d = C30[i];
+      const tip = $('#tip30');
+      if (!tip) return;
+      tip.hidden = false;
+      tip.innerHTML = '<strong>' + n1(d.v, 2) + ' kWh</strong><span>' + d.l + '</span>';
+      tip.style.left = (((i + 0.5) / n) * 100).toFixed(2) + '%';
+      $$('#chart30 .cb').forEach((x, k) => x.classList.toggle('on', k === i));
+      clearTimeout(TIP_T);
+      TIP_T = setTimeout(() => {
+        tip.hidden = true;
+        $$('#chart30 .cb').forEach((x) => x.classList.remove('on'));
+      }, 3200);
+    };
+    ch.addEventListener('pointerdown', marcar);
+    ch.addEventListener('pointermove', (e) => { if (e.buttons > 0 || e.pointerType === 'touch') marcar(e); });
+  }
+
   const bRec = $('#btn-recarga');
   if (bRec) bRec.addEventListener('click', () => {
     go('recargas');
@@ -513,7 +600,7 @@ function wire() {
       if (INSTALL_EVT) {
         INSTALL_EVT.prompt();
         const r = await INSTALL_EVT.userChoice;
-        if (r.outcome === 'accepted') { $('#install').hidden = true; toast('Prekilo instalada'); }
+        if (r.outcome === 'accepted') { $('#install').hidden = true; toast('edeKilo instalada'); }
         INSTALL_EVT = null;
       } else {
         toast('Compartir → Añadir a pantalla de inicio');
