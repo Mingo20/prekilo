@@ -1,4 +1,4 @@
-/* edeKilo · PWA de energía prepago (Edesur)
+/* SuperKilo · PWA de energía prepago (Edesur)
    Backend Deno: Base44 function prekiloApi
    Local: IndexedDB para funcionar sin internet */
 'use strict';
@@ -9,6 +9,8 @@ const DB_STORE = 'kv';
 const REFRESH_MS = 60_000;
 
 const ICONS = {
+  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v2.4a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 3.6 2 2 0 0 1 4.1 1.4h2.4a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.4 2.1L7.7 9.3a16 16 0 0 0 6 6l1.2-1.1a2 2 0 0 1 2.1-.5c.9.4 1.9.6 2.9.7a2 2 0 0 1 1.7 2Z"/></svg>',
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5.5 9.5V21h13V9.5"/></svg>',
   chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
@@ -117,11 +119,11 @@ let OFFLINE = false;
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const n1 = (v, d = 1) => (v === null || v === undefined || Number.isNaN(Number(v)) ? '—' : Number(v).toFixed(d));
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const fFecha = (s) => {
   if (!s) return '—';
   const [y, m, d] = String(s).slice(0, 10).split('-').map(Number);
-  const M = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  return `${d} ${M[m - 1]} ${y}`;
+  return `${d} ${MESES[m - 1]} ${y}`;
 };
 const fHora = (iso) => (iso ? String(iso).slice(11, 16) : '—');
 const fNum = (v) => Number(v || 0).toLocaleString('es-DO', { maximumFractionDigits: 2 });
@@ -191,7 +193,7 @@ function render(st) {
 
   const diasTot = prom ? bk.total / prom : 0;
   $('#dias').textContent = n1(diasTot, 1);
-  $('#horas').textContent = n1(diasTot * 24, 0) + ' h';
+  $('#horas').textContent = n1(diasTot * 24, 0);
 
   // Aviso
   const al = $('#alerta');
@@ -233,6 +235,7 @@ function render(st) {
   }).join('') || '<p class="muted tiny">Sin datos todavía.</p>';
   const tot7 = ult7.reduce((s, x) => s + Number(x.kwh || 0), 0);
   $('#spark-tot').textContent = `${n1(tot7, 1)} kWh en total`;
+  renderRec7(st);
 
   // Chart 30 días
   const c30 = (st.consumos || []).slice(0, 30).reverse();
@@ -332,7 +335,7 @@ function tickCountdown() {
   const et = $('#agota-et');
   if (!el) return;
   if (ms <= 0) {
-    el.textContent = '0 h';
+    el.textContent = '0 horas';
     lab.textContent = 'sin energía';
     et.textContent = '—';
     return;
@@ -341,7 +344,7 @@ function tickCountdown() {
   const d = Math.floor(totalMin / 1440);
   const h = Math.floor((totalMin % 1440) / 60);
   const m = totalMin % 60;
-  el.textContent = d > 0 ? `${d} d ${h} h` : `${h} h ${String(m).padStart(2, '0')} m`;
+  el.textContent = d > 0 ? `${d} ${d === 1 ? 'día' : 'días'} ${h} ${h === 1 ? 'hora' : 'horas'}` : `${h} ${h === 1 ? 'hora' : 'horas'} ${String(m).padStart(2, '0')} min`;
   el.style.color = totalMin < 360 ? 'var(--red)' : '';
   lab.textContent = 'cuenta regresiva';
   const f = new Date(EXPIRA);
@@ -606,7 +609,7 @@ function wire() {
       if (INSTALL_EVT) {
         INSTALL_EVT.prompt();
         const r = await INSTALL_EVT.userChoice;
-        if (r.outcome === 'accepted') { $('#install').hidden = true; toast('edeKilo instalada'); }
+        if (r.outcome === 'accepted') { $('#install').hidden = true; toast('SuperKilo instalada'); }
         INSTALL_EVT = null;
       } else {
         toast('Compartir → Añadir a pantalla de inicio');
@@ -649,3 +652,179 @@ function wire() {
   mostrarInstall();
   setInterval(() => { if (navigator.onLine) cargar('state', true); }, REFRESH_MS);
 })();
+
+/* ================= Recargas (últimas 7) ================= */
+function bindBars(cont) {
+  if (!cont || cont.dataset.bind) return;
+  cont.dataset.bind = '1';
+  cont.addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.b');
+    if (!b) return;
+    cont.querySelectorAll('.b').forEach((x) => x.classList.remove('on'));
+    b.classList.add('on');
+    clearTimeout(SPARK_T);
+    SPARK_T = setTimeout(() => b.classList.remove('on'), 3000);
+  });
+}
+
+function renderRec7(st) {
+  const cont = document.querySelector('#rec7');
+  if (!cont) return;
+  const recs = (st.recargas || []).slice(-7);
+  const tot = document.querySelector('#rec7-tot');
+  if (!recs.length) {
+    cont.innerHTML = '<p class="muted tiny">Aún no hay recargas registradas.</p>';
+    if (tot) tot.textContent = 'Registra lo que compras para ver el gráfico.';
+    return;
+  }
+  const maxR = Math.max(...recs.map((r) => Number(r.kwh || 0)), 1);
+  cont.innerHTML = recs.map((r) => {
+    const h = Math.max(12, (Number(r.kwh || 0) / maxR) * 76);
+    const dia = String(r.fecha || '').slice(8, 10);
+    return `<div class="b" data-l="${fFecha(r.fecha)}" data-v="${n1(r.kwh, 1)}">
+      <span class="bv">${n1(r.kwh, 1)}</span>
+      <div class="bar-v rec" style="height:${h}px"></div>
+      <span class="lbl">${dia}</span></div>`;
+  }).join('');
+  if (tot) tot.textContent = `${recs.length} recargas · ${n1(recs.reduce((s, r) => s + Number(r.kwh || 0), 0), 1)} kWh en total`;
+  bindBars(cont);
+}
+
+/* ================= Histórico del medidor ================= */
+const MED_API = 'https://ca-68f01a11.base44.app/functions/edekiloMedidor';
+const fNum2 = (v) => Number(v || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function cargarMedidor() {
+  const el = document.querySelector('#med-lectura');
+  if (!el) return;
+  let d = null;
+  try { d = await kvGet('medidor'); } catch (e) {}
+  if (navigator.onLine) {
+    try {
+      const r = await fetch(MED_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const j = await r.json();
+      if (j && j.ok) { d = j; await kvSet('medidor', j); }
+    } catch (e) {}
+  }
+  if (!d) return;
+  const L = (d.lecturas || [])[0];
+  if (L) el.textContent = `Lectura ${fNum2(L.energiaActiva)} · ${fFecha(L.fecha)}`;
+  const lm = document.querySelector('#lista-medidor');
+  if (lm) {
+    lm.innerHTML = (d.lecturas || []).map((x) => `<li><span class="lft"><strong>${fNum2(x.energiaActiva)} kWh</strong><small>${fFecha(x.fecha)}</small></span><span class="muted tiny">lectura del medidor</span></li>`).join('')
+      || '<li class="empty">Sin lecturas todavía.</li>';
+  }
+  const lme = document.querySelector('#lista-mensual');
+  if (lme) {
+    lme.innerHTML = (d.mensual || []).map((m) => `<li><span class="lft"><strong>RD$ ${fNum2(m.importe)}</strong><small>${fFecha(m.fecha)}</small></span><span class="muted tiny">lectura al cierre ${fNum2(m.consumo)}</span></li>`).join('');
+  }
+}
+
+/* ================= Ventanas deslizantes ================= */
+const PUNTOS = [
+  { n: 'Oficina Edesur · Av. Tiradentes', d: 'Av. Tiradentes, Ensanche Naco, Santo Domingo', lat: 18.4794581, lon: -69.9279164 },
+  { n: 'Edesur · atención Tiradentes', d: 'Av. Tiradentes, Santo Domingo', lat: 18.4790925, lon: -69.9276587 },
+  { n: 'Centro de Formación Edesur', d: 'Av. Tiradentes, Santo Domingo', lat: 18.4797239, lon: -69.9272254 },
+  { n: 'Edesur · zona suroeste', d: 'Santo Domingo Oeste', lat: 18.4686316, lon: -69.960045 }
+];
+
+let MAPA = null;
+
+function initMapa() {
+  const cont = document.querySelector('#mapa');
+  if (!cont) return;
+  const info = document.querySelector('#mapa-info');
+  const ir = document.querySelector('#mp-ir');
+  const buscar = document.querySelector('#mp-buscar');
+  if (buscar) buscar.href = 'https://www.google.com/maps/search/punto+de+pago+edesur/';
+  if (!window.L) {
+    cont.innerHTML = '<div class="mapa-off"><p class="muted tiny">El mapa necesita internet la primera vez.</p></div>';
+    return;
+  }
+  if (MAPA) { setTimeout(() => MAPA.invalidateSize(), 260); return; }
+  MAPA = L.map(cont, { attributionControl: false, zoomControl: true }).setView([18.4762, -69.94], 11);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(MAPA);
+  PUNTOS.forEach((p) => {
+    L.marker([p.lat, p.lon]).addTo(MAPA).on('click', () => {
+      document.querySelector('#mp-nombre').textContent = p.n;
+      document.querySelector('#mp-dir').textContent = p.d;
+      ir.href = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lon}`;
+      info.hidden = false;
+    });
+  });
+  setTimeout(() => MAPA.invalidateSize(), 260);
+}
+
+function initSheets() {
+  const backdrop = document.querySelector('#sheet-backdrop');
+  let abierta = null, y0 = 0, dy = 0, arrastrando = false;
+
+  function abrir(id) {
+    const sh = document.querySelector('#' + id);
+    if (!sh) return;
+    abierta = sh;
+    sh.hidden = false;
+    backdrop.hidden = false;
+    requestAnimationFrame(() => { sh.classList.add('on'); backdrop.classList.add('on'); });
+    document.body.classList.add('no-scroll');
+    if (id === 'sheet-pagos') initMapa();
+  }
+
+  function cerrar() {
+    if (!abierta) return;
+    const sh = abierta;
+    abierta = null;
+    sh.classList.remove('on');
+    backdrop.classList.remove('on');
+    sh.style.transform = '';
+    document.body.classList.remove('no-scroll');
+    setTimeout(() => { sh.hidden = true; backdrop.hidden = true; }, 280);
+  }
+
+  document.querySelectorAll('[data-sheet]').forEach((b) => {
+    b.addEventListener('click', () => abrir('sheet-' + b.dataset.sheet));
+  });
+  if (backdrop) backdrop.addEventListener('click', cerrar);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });
+
+  document.querySelectorAll('.sheet').forEach((sh) => {
+    sh.querySelectorAll('.sheet-grab, .sheet-head').forEach((asa) => {
+      asa.addEventListener('pointerdown', (e) => {
+        arrastrando = true; y0 = e.clientY; dy = 0;
+        sh.style.transition = 'none';
+        try { asa.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      asa.addEventListener('pointermove', (e) => {
+        if (!arrastrando) return;
+        dy = Math.max(0, e.clientY - y0);
+        sh.style.transform = `translateY(${dy}px)`;
+        backdrop.style.opacity = String(Math.max(0, 1 - dy / 420));
+      });
+      const soltar = () => {
+        if (!arrastrando) return;
+        arrastrando = false;
+        sh.style.transition = '';
+        backdrop.style.opacity = '';
+        if (dy > 110) cerrar(); else sh.style.transform = '';
+      };
+      asa.addEventListener('pointerup', soltar);
+      asa.addEventListener('pointercancel', soltar);
+    });
+  });
+}
+
+/* ================= Arranque de piezas nuevas ================= */
+setTimeout(() => {
+  try { initSheets(); bindBars(document.querySelector('#spark7')); cargarMedidor(); } catch (e) {}
+  const bm = document.querySelector('#btn-medidor');
+  if (bm) {
+    bm.addEventListener('click', () => {
+      const body = document.querySelector('#med-body');
+      const abierto = !body.hidden;
+      body.hidden = abierto;
+      bm.setAttribute('aria-expanded', String(!abierto));
+      bm.classList.toggle('abierto', !abierto);
+      document.querySelector('#card-medidor').classList.toggle('abierto', !abierto);
+    });
+  }
+}, 700);

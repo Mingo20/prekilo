@@ -4,8 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#FFFFFF" />
-<meta name="description" content="edeKilo — control de energía prepago Edesur en tiempo real." />
-<title>edeKilo · Energía prepago</title>
+<meta name="description" content="SuperKilo — control de energía prepago Edesur en tiempo real." />
+<title>SuperKilo · Energía prepago</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="icons/icon-192.png" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -13,6 +13,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 <div class="glow" aria-hidden="true"></div>
@@ -24,7 +25,7 @@
       <span class="mark" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none"><path d="M13.4 2 4 13.4h6.1L9.8 22 20 10.2h-6.3L13.4 2Z" fill="currentColor"/></svg>
       </span>
-      <span class="brand-txt"><strong>edeKilo</strong><small>Energía prepago</small></span>
+      <span class="brand-txt"><strong>SuperKilo</strong><small>Energía prepago</small></span>
     </div>
     <nav class="rail-nav">
       <button class="rail-btn is-active" data-view="inicio"><i data-ico="home"></i><span>Inicio</span></button>
@@ -46,7 +47,7 @@
           <svg viewBox="0 0 24 24" fill="none"><path d="M13.4 2 4 13.4h6.1L9.8 22 20 10.2h-6.3L13.4 2Z" fill="currentColor"/></svg>
         </span>
         <div>
-          <strong id="greet">edeKilo</strong>
+          <strong id="greet">SuperKilo</strong>
           <small class="muted" id="sync-line" hidden></small>
         </div>
       </div>
@@ -62,7 +63,7 @@
       <section class="view is-active" id="view-inicio">
         <div class="install" id="install" hidden>
           <div class="install-txt">
-            <strong>Instala edeKilo</strong>
+            <strong>Instala SuperKilo</strong>
             <p class="muted tiny" id="install-p">Queda como app en tu teléfono y funciona sin internet.</p>
           </div>
           <button class="btn primary sm" id="btn-install">Instalar</button>
@@ -103,37 +104,25 @@
           <div><strong id="alerta-t">Saldo bajo</strong><p id="alerta-p" class="muted"></p></div>
         </div>
 
-        <div class="grid-2">
-          <div class="card">
-            <div class="card-h"><h3>Hoy</h3><span class="muted tiny" id="hoy-fecha">—</span></div>
-            <div class="big-mini"><span id="hoy-kwh">—</span><small>kWh consumidos</small></div>
-            <p class="muted tiny" id="hoy-nota">—</p>
-          </div>
-          <div class="card">
-            <div class="card-h"><h3>Se agota en</h3><span class="muted tiny" id="agota-et">—</span></div>
-            <div class="big-mini"><span id="agota-cd">—</span><small id="agota-lab">cuenta regresiva</small></div>
-            <p class="muted tiny" id="agota-nota">Estimado con tu promedio real.</p>
-          </div>
+        <div class="card">
+          <div class="card-h"><h3>Se agota en</h3><span class="muted tiny" id="agota-et">—</span></div>
+          <div class="big-mini"><span id="agota-cd">—</span><small id="agota-lab">cuenta regresiva</small></div>
+          <p class="muted tiny" id="agota-nota">Estimado con tu promedio real.</p>
         </div>
 
         <div class="card">
-          <div class="card-h"><h3>Últimos 7 días</h3><span class="muted tiny" id="spark-tot">—</span></div>
-          <div class="spark" id="spark7"></div>
-          <div class="legend-row">
-            <span><i class="sw entre"></i>Entre semana</span>
-            <span><i class="sw fin"></i>Fin de semana</span>
+          <div class="card-h">
+            <h3>Últimas 7 recargas</h3>
+            <button class="btn ghost xs" data-view="recargas" id="btn-ver-recargas">Historial</button>
           </div>
+          <div class="spark" id="rec7"></div>
+          <p class="muted tiny" id="rec7-tot">—</p>
         </div>
-
       </section>
 
       <!-- CONSUMO -->
       <section class="view" id="view-consumo">
-        <div class="card">
-          <div class="card-h"><h3>Consumo diario</h3><span class="muted tiny">30 días</span></div>
-          <div class="chart-wrap"><div class="tip" id="tip30" hidden></div><div class="chart" id="chart30"></div></div>
-        </div>
-        <div class="grid-3">
+        <div class="kpi-grid">
           <div class="card mini">
             <small class="muted">Promedio general</small>
             <strong id="kpi-avg">—</strong><span class="muted tiny">kWh/día</span>
@@ -146,10 +135,40 @@
             <small class="muted">Fin de semana</small>
             <strong id="kpi-fin">—</strong><span class="muted tiny">kWh/día</span>
           </div>
+          <div class="card mini mini-hoy">
+            <small class="muted">Hoy</small>
+            <strong id="hoy-kwh">—</strong><span class="muted tiny">kWh · <em id="hoy-fecha">—</em></span>
+            <p class="muted tiny nota-mini" id="hoy-nota">—</p>
+          </div>
         </div>
+
         <div class="card">
-          <div class="card-h"><h3>Histórico del medidor</h3><span class="muted tiny" id="med-linea">—</span></div>
-          <ul class="list" id="lista-consumo"></ul>
+          <div class="card-h"><h3>Últimos 7 días</h3><span class="muted tiny" id="spark-tot">—</span></div>
+          <div class="spark" id="spark7"></div>
+          <div class="legend-row">
+            <span><i class="sw entre"></i>Entre semana</span>
+            <span><i class="sw fin"></i>Fin de semana</span>
+          </div>
+        </div>
+
+        <div class="card medidor" id="card-medidor">
+          <button class="medidor-h" id="btn-medidor" aria-expanded="false" aria-controls="med-body">
+            <span class="medidor-t">
+              <strong>Histórico del medidor</strong>
+              <small class="muted" id="med-lectura">—</small>
+            </span>
+            <i data-ico="chev" class="chev"></i>
+          </button>
+          <div class="medidor-body" id="med-body" hidden>
+            <p class="muted tiny">Lecturas del medidor y consumo mensual facturado.</p>
+            <ul class="list" id="lista-medidor"><li class="empty">Sin lecturas todavía.</li></ul>
+            <ul class="list" id="lista-mensual"></ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Consumo diario</h3><span class="muted tiny">30 días</span></div>
+          <div class="chart-wrap"><div class="tip" id="tip30" hidden></div><div class="chart" id="chart30"></div></div>
         </div>
       </section>
 
@@ -178,26 +197,14 @@
       <!-- SERVICIOS -->
       <section class="view" id="view-servicios">
         <div class="card">
-          <div class="card-h"><h3>Recargas</h3><span class="muted tiny" id="serv-rec-tot">—</span></div>
-          <p class="muted tiny" id="serv-rec-p">Registra lo que compras y edeKilo recalcula el saldo y los días de luz.</p>
-          <div class="btn-row">
-            <button class="btn primary" data-view="recargas"><i data-ico="plus"></i>Registrar recarga</button>
-            <button class="btn ghost" data-view="recargas"><i data-ico="chart"></i>Ver historial</button>
-          </div>
-        </div>
-        <div class="card">
           <div class="card-h"><h3>Servicios Edesur</h3><span class="muted tiny">Accesos directos</span></div>
           <div class="serv-grid">
             <a class="serv" href="https://ov.edesur.com.do/PagoCuentas" target="_blank" rel="noopener">
               <i data-ico="bolt"></i><strong>Recargar energía</strong><small>Prepago en línea</small></a>
-            <a class="serv" href="https://ov.edesur.com.do/consulta-de-consumo" target="_blank" rel="noopener">
-              <i data-ico="chart"></i><strong>Teleconsumo</strong><small>Ver reporte oficial</small></a>
-            <a class="serv" href="https://www.edesur.com.do/servicios/atencion-telefonica/" target="_blank" rel="noopener">
-              <i data-ico="alert"></i><strong>Reportar avería</strong><small>Call center 809-747-9393</small></a>
-            <a class="serv" href="https://www.edesur.com.do/puntos-de-pago/" target="_blank" rel="noopener">
-              <i data-ico="pin"></i><strong>Puntos de pago</strong><small>Dónde recargar</small></a>
-            <a class="serv" href="https://www.edesur.com.do/tarifa-electrica/" target="_blank" rel="noopener">
-              <i data-ico="tag"></i><strong>Tarifa eléctrica</strong><small>Precios oficiales</small></a>
+            <button class="serv" data-sheet="averia">
+              <i data-ico="alert"></i><strong>Reportar avería</strong><small>Cómo avisar a Edesur</small></button>
+            <button class="serv" data-sheet="pagos">
+              <i data-ico="pin"></i><strong>Puntos de pago</strong><small>Mapa y direcciones</small></button>
             <a class="serv" href="https://www.edesur.com.do/servicios/" target="_blank" rel="noopener">
               <i data-ico="grid"></i><strong>Más servicios</strong><small>Oficina virtual</small></a>
           </div>
@@ -243,10 +250,48 @@
           <div class="card-h"><h3>Datos</h3><span class="muted tiny" id="ult-sync">—</span></div>
           <button class="btn ghost" id="btn-sync2"><i data-ico="refresh"></i>Sincronizar con Edesur</button>
           <button class="btn ghost" id="btn-limpiar">Borrar datos guardados en este equipo</button>
-          <p class="muted tiny">edeKilo funciona sin internet con los últimos datos guardados. La sincronización diaria corre a las 2:00 p. m.</p>
+          <p class="muted tiny">SuperKilo funciona sin internet con los últimos datos guardados. La sincronización diaria corre a las 2:00 p. m.</p>
         </div>
       </section>
     </main>
+
+
+    <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+
+    <div class="sheet" id="sheet-averia" hidden role="dialog" aria-modal="true" aria-label="Reportar avería">
+      <div class="sheet-grab"><span></span></div>
+      <div class="sheet-head">
+        <h3>Reportar una avería</h3>
+        <p class="muted tiny">Edesur atiende por teléfono las 24 horas.</p>
+      </div>
+      <div class="sheet-body">
+        <ol class="steps">
+          <li><strong>Ten a mano el número de contrato</strong><span>El tuyo es 7014973 y el medidor 10220726.</span></li>
+          <li><strong>Explica qué pasa</strong><span>Sin luz total, cables caídos, medidor con falla o fluctuaciones.</span></li>
+          <li><strong>Da tu dirección</strong><span>Calle Bloque 4 #1, Hato Nuevo. Circuito HANU102.</span></li>
+          <li><strong>Anota el número de reporte</strong><span>Te lo dan al final y sirve para dar seguimiento.</span></li>
+        </ol>
+        <a class="btn primary big" href="tel:8097479393"><i data-ico="phone"></i>Llamar a Edesur</a>
+        <a class="btn ghost big" href="https://wa.me/18097479393" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet-pagos" hidden role="dialog" aria-modal="true" aria-label="Puntos de pago">
+      <div class="sheet-grab"><span></span></div>
+      <div class="sheet-head">
+        <h3>Puntos de pago</h3>
+        <p class="muted tiny">Toca un punto del mapa para ver la dirección.</p>
+      </div>
+      <div class="sheet-body">
+        <div class="mapa" id="mapa"></div>
+        <div class="mapa-info" id="mapa-info" hidden>
+          <div><strong id="mp-nombre">—</strong><small class="muted" id="mp-dir">—</small></div>
+          <a class="btn primary sm" id="mp-ir" href="#" target="_blank" rel="noopener">Ir allá</a>
+        </div>
+        <p class="muted tiny">Los puntos comerciales cambian seguido. Si no ves uno cerca, busca los más próximos a ti.</p>
+        <a class="btn ghost big" id="mp-buscar" href="#" target="_blank" rel="noopener">Buscar puntos cerca de mí</a>
+      </div>
+    </div>
 
     <nav class="tabbar" aria-label="Navegación">
       <button class="tab is-active" data-view="inicio"><i data-ico="home"></i><span>Inicio</span></button>
@@ -264,6 +309,7 @@
 window.addEventListener('error',function(e){var d=document.getElementById('dbg');if(d){d.textContent='ERR: '+(e.message||e.type)+' @'+(e.filename||'').split('/').pop()+':'+(e.lineno||'');d.style.display='block';}});
 window.addEventListener('unhandledrejection',function(e){var d=document.getElementById('dbg');if(d){d.textContent='REJ: '+((e.reason&&(e.reason.message||e.reason))||'');d.style.display='block';}});
 </script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>
