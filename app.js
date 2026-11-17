@@ -145,12 +145,11 @@ function render(st) {
   $('#bar').setAttribute('aria-valuenow', pct.toFixed(1));
   const markPct = Math.max(1, Math.min(99, (umbral / (habitual || 16)) * 100));
   $('#bar-mark').style.left = markPct + '%';
-  $('#bar-left').textContent = '0 kWh';
-  $('#bar-right').textContent = `${n1(habitual, 0)} kWh (recarga habitual)`;
+  $('#bar-left').textContent = Math.round(pct) + '% restante';
+  $('#bar-right').textContent = `de ${n1(habitual, 0)} kWh recargados`;
 
   $('#dias').textContent = n1(st.dias_restantes, 1);
   $('#horas').textContent = n1(st.horas_restantes, 0) + ' h';
-  $('#prom').textContent = n1(prom, 2);
 
   // Aviso
   const al = $('#alerta');
@@ -258,8 +257,17 @@ function render(st) {
   $('#ancla-linea').textContent = st.ancla ? `Ancla: ${n1(st.ancla.kwh, 2)} kWh · ${fFecha(st.ancla.fecha)} ${fHora(st.ancla.ts)}` : '—';
   $('#ult-sync').textContent = st.ultima_sync ? 'Sync ' + fFecha(st.ultima_sync) + ' ' + fHora(st.ultima_sync) : '—';
   $('#sync-line').textContent = st.ultima_sync
-    ? `Actualizado ${fFecha(st.ultima_sync)} · ${fHora(st.ultima_sync)}`
+    ? `Actualizado ${fFechaCorta(st.ultima_sync)} · ${fHora(st.ultima_sync)}`
     : 'Sin sincronizar';
+}
+
+function fFechaCorta(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso.length <= 19 ? iso + 'Z' : iso);
+  if (isNaN(d)) return '—';
+  const wd = d.toLocaleDateString('es-DO', { weekday: 'short' }).replace('.', '');
+  const dia = d.getDate();
+  return wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + dia;
 }
 
 function tickCountdown() {
@@ -452,12 +460,14 @@ function wire() {
   $('#btn-refresh').addEventListener('click', sincronizar);
   $('#btn-sync2').addEventListener('click', sincronizar);
 
-  $('#btn-recarga').addEventListener('click', () => {
+  const bRec = $('#btn-recarga');
+  if (bRec) bRec.addEventListener('click', () => {
     go('recargas');
     $('#inp-kwh').value = STATE ? STATE.recarga_habitual : 16;
   });
 
-  $('#btn-ancla').addEventListener('click', () => {
+  const bAnc = $('#btn-ancla');
+  if (bAnc) bAnc.addEventListener('click', () => {
     go('ajustes');
     $('#inp-ancla').value = STATE ? STATE.saldo_kwh : '';
   });

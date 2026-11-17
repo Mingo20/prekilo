@@ -51,9 +51,8 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <div class="conn" id="conn-top"><span class="dot"></span><span class="conn-txt">—</span></div>
-        <button class="icon-btn" id="btn-refresh" title="Sincronizar con Edesur" aria-label="Sincronizar con Edesur">
-          <i data-ico="refresh"></i>
+        <button class="btn ghost sm" id="btn-refresh" title="Sincronizar con Edesur" aria-label="Sincronizar con Edesur">
+          <i data-ico="refresh"></i>Actualizar
         </button>
       </div>
     </header>
@@ -85,14 +84,13 @@
             <div class="bar-mark" id="bar-mark" title="Umbral de alerta"></div>
           </div>
           <div class="bar-legend">
-            <span id="bar-left">0 kWh</span>
+            <span class="pct" id="bar-left">— restante</span>
             <span id="bar-right">—</span>
           </div>
 
           <div class="chips">
             <div class="chip"><small>Días de luz</small><strong id="dias">—</strong></div>
-            <div class="chip"><small>Horas</small><strong id="horas">—</strong></div>
-            <div class="chip"><small>Promedio diario</small><strong id="prom">—</strong></div>
+            <div class="chip"><small>Hora de luz</small><strong id="horas">—</strong></div>
           </div>
         </div>
 
@@ -123,10 +121,6 @@
           </div>
         </div>
 
-        <div class="quick">
-          <button class="btn primary" id="btn-recarga"><i data-ico="plus"></i>Recargar 16 kWh</button>
-          <button class="btn ghost" id="btn-ancla"><i data-ico="target"></i>Actualizar lectura</button>
-        </div>
       </section>
 
       <!-- CONSUMO -->

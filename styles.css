@@ -110,10 +110,11 @@ main{padding:6px 16px 110px;display:block}
 .hero.is-warn .bar-fill{background:linear-gradient(90deg,#c97f00,var(--amber))}
 .hero.is-bad .bar-fill{background:linear-gradient(90deg,#a5182a,var(--red))}
 .bar-mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:rgba(255,255,255,.55);left:37.5%;border-radius:2px;opacity:.75}
-.bar-legend{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--muted)}
+.bar-legend{display:flex;justify-content:space-between;align-items:baseline;margin-top:8px;font-size:11px;color:var(--muted)}
+.bar-legend .pct{font-size:15px;font-weight:800;color:var(--txt);letter-spacing:-.2px}
 
-.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
-.chip{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:14px;padding:9px 10px}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:16px}
+.chip{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:14px;padding:10px 10px;text-align:center}
 .chip small{display:block;color:var(--muted);font-size:10.5px;text-transform:uppercase;letter-spacing:.5px}
 .chip strong{font-size:17px;font-variant-numeric:tabular-nums}
 
@@ -133,7 +134,7 @@ main{padding:6px 16px 110px;display:block}
 .big-mini{display:flex;align-items:baseline;gap:6px}
 .big-mini span{font-size:30px;font-weight:750;letter-spacing:-1.2px;font-variant-numeric:tabular-nums}
 .big-mini small{color:var(--muted);font-size:11.5px}
-.card.mini{display:flex;flex-direction:column;gap:2px;padding:14px 12px}
+.card.mini{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:2px;padding:16px 12px}
 .card.mini strong{font-size:22px;font-variant-numeric:tabular-nums}
 
 /* ---------- sparkline ---------- */
