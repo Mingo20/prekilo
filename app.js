@@ -1079,6 +1079,7 @@ function pintarProyeccion() {
   let tramo = esc[0];
   for (const t of esc) { if (proy >= Number(t.rangoDesde || 0)) tramo = t; }
   if (tr && tramo) tr.textContent = 'Tramo ' + tramo.escala;
+  if (TIPO === 'factura') aplicarModo();
   const n = document.querySelector('#proy-nota');
   if (n) n.textContent = `Van ${f2(medidoMes)} kWh medidos en ${dia} días del ciclo, con tu promedio de ${f2(prom)} kWh/día.`;
 }
