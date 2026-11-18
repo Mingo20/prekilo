@@ -1082,8 +1082,8 @@ function pintarProyeccion() {
 }
 
 function aplicarModo() {
-  if (TIPO !== 'factura' || !FICHA) return;
-  const diario = FICHA.historicoConsumoDiario || [];
+  if (TIPO !== 'factura') return;
+  const diario = (FICHA && FICHA.historicoConsumoDiario) || ((STATE && STATE.consumos) || []).map((x) => ({ fecha: x.fecha, consumo: x.kwh }));
   const ahora = new Date(Date.now() - 4 * 3600 * 1000);
   const clave = ahora.toISOString().slice(0, 7);
   const medidoMes = diario.filter((x) => String(x.fecha).slice(0, 7) === clave).reduce((s, x) => s + Number(x.consumo || 0), 0);
