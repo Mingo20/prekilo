@@ -274,9 +274,8 @@ function render(st) {
   $('#hoy-fecha').textContent = fFecha(hoy.fecha);
   const hoyVal = hoy.medido !== null && hoy.medido !== undefined ? hoy.medido : hoy.estimado;
   $('#hoy-kwh').textContent = n1(hoyVal, 2);
-  $('#hoy-nota').textContent = hoy.medido !== null && hoy.medido !== undefined
-    ? 'Lectura del medidor confirmada.'
-    : 'Estimado con tu promedio (el medidor cierra el día a las 12 a. m.).';
+  const hn = $('#hoy-nota');
+  if (hn) hn.textContent = hoy.medido !== null && hoy.medido !== undefined ? 'Medidor' : 'Estimado';
 
   // Cuenta regresiva
   EXPIRA = Date.now() + Math.max(0, diasTot * 24) * 3600_000;
