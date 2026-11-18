@@ -78,7 +78,12 @@
             <span class="kwh" id="saldo">—</span>
             <span class="unit">kWh</span>
           </div>
-          <p class="hero-sub" id="hero-sub">disponibles ahora</p>
+          <p class="hero-sub" id="hero-sub">consumidos</p>
+          <div class="seg" id="seg-ventana">
+            <button class="seg-b" data-d="3">3 días</button>
+            <button class="seg-b is-on" data-d="7">7 días</button>
+            <button class="seg-b" data-d="30">30 días</button>
+          </div>
 
           <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bar">
             <div class="bar-fill" id="bar-fill"></div>
@@ -109,14 +114,7 @@
           <div class="big-mini"><span id="agota-cd">—</span><small id="agota-lab">cuenta regresiva</small></div>
           <p class="muted tiny" id="agota-nota">Estimado con tu promedio real.</p>
         </div>
-
-        <div class="card" id="card-rec7">
-          <div class="card-h">
-            <h3>Últimas 7 recargas</h3>
-          </div>
-          <div class="spark" id="rec7"></div>
-        </div>
-      </section>
+</section>
 
       <!-- CONSUMO -->
       <section class="view" id="view-consumo">
@@ -263,16 +261,21 @@
         <div class="card">
           <div class="card-h"><h3>Alertas</h3><span class="muted tiny">Push del navegador</span></div>
           <div class="row">
-            <div><strong>Notificación de saldo bajo</strong><p class="muted tiny" id="push-estado">Sin activar</p></div>
+            <div><strong>Notificaciones en este teléfono</strong><p class="muted tiny" id="push-estado">Sin activar</p></div>
             <button class="btn ghost sm" id="btn-push">Activar</button>
           </div>
+          <div class="avisos" id="lista-avisos">
+            <label class="sw-row"><span><strong>Consumo fuera de lo normal</strong><small class="muted tiny">Un día se dispara frente a tu promedio</small></span><input type="checkbox" class="sw" data-aviso="atipico" /><i class="sw-ui"></i></label>
+            <label class="sw-row"><span><strong>Posible lectura estimada</strong><small class="muted tiny">Días en cero o repetidos</small></span><input type="checkbox" class="sw" data-aviso="estimada" /><i class="sw-ui"></i></label>
+            <label class="sw-row"><span><strong>Cambio de medidor</strong><small class="muted tiny">Te avisamos si cambia el número</small></span><input type="checkbox" class="sw" data-aviso="medidor" /><i class="sw-ui"></i></label>
+            <label class="sw-row"><span><strong>Edesur deja de publicar</strong><small class="muted tiny">Tres días sin lectura nueva</small></span><input type="checkbox" class="sw" data-aviso="sin_datos" /><i class="sw-ui"></i></label>
+            <label class="sw-row"><span><strong>Tu factura va a subir</strong><small class="muted tiny">Proyección 25 % sobre el mes anterior</small></span><input type="checkbox" class="sw" data-aviso="proyeccion" /><i class="sw-ui"></i></label>
+            <label class="sw-row"><span><strong>Resumen diario</strong><small class="muted tiny">Tu consumo del día cada mañana</small></span><input type="checkbox" class="sw" data-aviso="resumen" /><i class="sw-ui"></i></label>
+          </div>
+          <button class="btn ghost sm" id="btn-probar-push" style="margin-top:8px">Probar notificación</button>
           <div class="row">
             <div><strong>Umbral de alerta</strong><p class="muted tiny">Avisar por debajo de</p></div>
             <div class="inline"><input id="inp-umbral" type="number" min="1" step="0.5" /><span class="muted">kWh</span></div>
-          </div>
-          <div class="row">
-            <div><strong>Recarga habitual</strong><p class="muted tiny">Tu compra normal en kWh</p></div>
-            <div class="inline"><input id="inp-hab" type="number" min="1" step="1" /><span class="muted">kWh</span></div>
           </div>
           <button class="btn primary" id="btn-guardar">Guardar ajustes</button>
         </div>

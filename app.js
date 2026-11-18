@@ -298,6 +298,7 @@ function render(st) {
   const tot7 = ult7.reduce((s, x) => s + Number(x.kwh || 0), 0);
   $('#spark-tot').textContent = `${n1(tot7, 1)} kWh en total`;
   renderRec7(st);
+  pintarVentana(st);
   if (!FICHA) respaldoContrato();
 
   // Chart 30 días
@@ -1113,3 +1114,94 @@ function wireFicha() {
   setTimeout(cargarFicha, 1500);
 }
 window.addEventListener('load', wireFicha);
+
+/* ================= Consumo acumulado (sin recargas manuales) ================= */
+let VENTANA = Number(localStorage.getItem('sk_ventana') || 7);
+
+function sumaVentana(st, dias) {
+  const c = (st.consumos || []).slice(0, dias);
+  return c.reduce((s, x) => s + Number(x.kwh || 0), 0);
+}
+
+function pintarVentana(st) {
+  const total = sumaVentana(st, VENTANA);
+  const prom = Number(st.promedio_diario || 3.3);
+  const esperado = prom * VENTANA;
+  const pct = esperado > 0 ? Math.max(0, Math.min(100, (total / esperado) * 100)) : 0;
+
+  $('#saldo').textContent = n1(total, 1);
+  $('#hero-sub').textContent = VENTANA === 1 ? 'consumido hoy' : `consumidos en los últimos ${VENTANA} días`;
+  $('#bar-fill').style.width = pct.toFixed(1) + '%';
+  $('#bar-left').textContent = Math.round(pct) + '% de tu promedio';
+  $('#bar-right').textContent = `~${n1(esperado, 0)} kWh esperados`;
+  const mark = $('#bar-mark');
+  if (mark) mark.style.left = '100%';
+
+  document.querySelectorAll('#seg-ventana .seg-b').forEach((b) => {
+    b.classList.toggle('is-on', Number(b.dataset.d) === VENTANA);
+  });
+  const hoy = Number((st.hoy && (st.hoy.medido ?? st.hoy.estimado)) || 0);
+  const chips = document.querySelectorAll('#view-inicio .chip small');
+  if (chips.length >= 2) { chips[0].textContent = 'Hoy'; chips[1].textContent = 'Promedio diario'; }
+  const dEl = $('#dias');
+  if (dEl) dEl.textContent = n1(hoy, 2);
+  const hora = $('#horas');
+  if (hora) hora.textContent = n1(total / VENTANA, 1);
+}
+
+function wireVentana() {
+  const seg = document.querySelector('#seg-ventana');
+  if (!seg) return;
+  seg.addEventListener('click', (e) => {
+    const b = e.target.closest('.seg-b');
+    if (!b) return;
+    VENTANA = Number(b.dataset.d);
+    localStorage.setItem('sk_ventana', String(VENTANA));
+    if (STATE) pintarVentana(STATE);
+  });
+}
+
+/* ================= Avisos push ================= */
+const AVISOS_API = 'https://ca-68f01a11.base44.app/functions/edekiloAvisos';
+const AVISOS_MSG = 'https://ca-68f01a11.base44.app/functions/edekiloAlertas';
+
+async function cargarAvisos() {
+  const token = localStorage.getItem('sk_token');
+  if (!token) return;
+  try {
+    const r = await fetch(AVISOS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+    const j = await r.json();
+    if (!j || !j.ok) return;
+    document.querySelectorAll('.sw[data-aviso]').forEach((sw) => {
+      sw.checked = j.avisos[sw.dataset.aviso] !== false;
+    });
+  } catch (e) {}
+}
+
+async function guardarAviso(clave, valor) {
+  const token = localStorage.getItem('sk_token');
+  if (!token) return;
+  try {
+    await fetch(AVISOS_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, action: 'avisos', avisos: { [clave]: valor } }) });
+  } catch (e) { toast('No pude guardar el aviso'); }
+}
+
+function wireAvisos() {
+  document.querySelectorAll('.sw[data-aviso]').forEach((sw) => {
+    sw.addEventListener('change', () => guardarAviso(sw.dataset.aviso, sw.checked));
+  });
+  const probar = document.querySelector('#btn-probar-push');
+  if (probar) probar.addEventListener('click', async () => {
+    const token = localStorage.getItem('sk_token');
+    if (!token) return;
+    toast('Enviando prueba…');
+    try {
+      const r = await fetch(AVISOS_MSG, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test', token }) });
+      const j = await r.json();
+      toast(j.enviados ? 'Notificación enviada' : 'Activa primero las notificaciones');
+    } catch (e) { toast('No se pudo enviar la prueba'); }
+  });
+  cargarAvisos();
+}
+
+setTimeout(() => { wireVentana(); wireAvisos(); if (STATE) pintarVentana(STATE); }, 700);

@@ -496,3 +496,19 @@ body.modo-factura #card-rec7{display:none}
 .steps{list-style:none;counter-reset:s;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
 .steps li{counter-increment:s;position:relative;padding-left:34px;font-size:13.5px;line-height:1.45}
 .steps li:before{content:counter(s);position:absolute;left:0;top:-1px;width:23px;height:23px;border-radius:99px;background:rgba(255,106,19,.12);color:#C24E08;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}
+
+/* ================= Selector de ventana y switches ================= */
+.seg{display:flex;gap:6px;margin:10px 0 12px;background:#F1F2F4;padding:4px;border-radius:12px;width:fit-content}
+.seg-b{border:0;background:transparent;color:#5A6B85;font:inherit;font-size:12.5px;font-weight:650;padding:7px 12px;border-radius:9px;cursor:pointer;transition:.18s}
+.seg-b.is-on{background:#fff;color:#0B2545;box-shadow:0 1px 3px rgba(11,37,69,.14)}
+.avisos{display:flex;flex-direction:column;gap:2px;margin-top:6px}
+.sw-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.sw-row:last-child{border-bottom:0}
+.sw-row span{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.sw-row strong{font-size:14px;font-weight:600}
+.sw{position:absolute;opacity:0;width:1px;height:1px}
+.sw-ui{flex:0 0 auto;width:46px;height:27px;border-radius:99px;background:#DDE2E9;position:relative;transition:background .22s}
+.sw-ui:before{content:"";position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(11,37,69,.28);transition:transform .22s cubic-bezier(.22,.61,.36,1)}
+.sw:checked + .sw-ui{background:#FF6A13}
+.sw:checked + .sw-ui:before{transform:translateX(19px)}
+.sw:focus-visible + .sw-ui{outline:2px solid #FF6A13;outline-offset:2px}
