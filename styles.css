@@ -460,8 +460,8 @@ body.no-scroll{overflow:hidden}
 .field input:focus{border-color:#FF6A13;background:#fff}
 .gate-msg{color:#D6382A;font-size:12px;min-height:15px;margin:0}
 .gate-legal{text-align:center;margin-top:4px;line-height:1.5}
-#lista-tarifa li,#kv-cliente li{justify-content:center;text-align:center;align-items:center;gap:2px}
-#lista-tarifa .lft,#kv-cliente .lft{align-items:center;text-align:center}
+#lista-tarifa li,#kv-cliente li{justify-content:space-between;text-align:left;align-items:baseline;gap:12px}
+#lista-tarifa .lft,#kv-cliente .lft{align-items:flex-start;text-align:left}
 
 /* ================= Ficha, semáforo y proyección ================= */
 .pill-tipo{font-size:11px;font-weight:750;letter-spacing:.4px;text-transform:uppercase;padding:4px 9px;border-radius:99px;background:#EFEFF2;color:#42536b}

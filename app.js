@@ -298,6 +298,7 @@ function render(st) {
   const tot7 = ult7.reduce((s, x) => s + Number(x.kwh || 0), 0);
   $('#spark-tot').textContent = `${n1(tot7, 1)} kWh en total`;
   renderRec7(st);
+  if (!FICHA) respaldoContrato();
 
   // Chart 30 días
   const c30 = (st.consumos || []).slice(0, 30).reverse();
@@ -927,13 +928,16 @@ async function cargarFicha() {
   if (!token) return;
   let d = await kvGet('ficha');
   if (navigator.onLine) {
-    try {
-      const r = await fetch(MEDAPI, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
-      const j = await r.json();
-      if (j && j.ok) { d = j; await kvSet('ficha', j); }
-    } catch (e) {}
+    for (let i = 0; i < 3; i++) {
+      try {
+        const r = await fetch(MEDAPI, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+        const j = await r.json().catch(() => null);
+        if (j && j.ok) { d = j; await kvSet('ficha', j); break; }
+      } catch (e) {}
+      await new Promise((res) => setTimeout(res, 1400));
+    }
   }
-  if (!d || !d.ok) return;
+  if (!d || !d.ok) { respaldoContrato(); return; }
   FICHA = d;
   if (!TIPO) {
     const hayRecargas = (STATE && (STATE.recargas || []).length) || (STATE && STATE.recarga_habitual);
@@ -943,6 +947,20 @@ async function cargarFicha() {
   document.body.classList.toggle('modo-factura', TIPO === 'factura');
   pintarFicha(); pintarSemaforo(); pintarProyeccion();
   if (STATE) aplicarModo();
+}
+
+function respaldoContrato() {
+  const st = STATE; if (!st) return;
+  const c = st.cliente || {};
+  const kv = document.querySelector('#kv-cliente');
+  if (kv && c.nic) {
+    kv.innerHTML = [['Cliente', c.nombreCliente], ['NIC', c.nic], ['NIS', c.nis], ['Medidor', c.numeroMedidor], ['Marca', c.marcaMedidor], ['Tarifa', c.tarifa], ['Dirección', c.direccion]]
+      .filter((x) => x[1]).map(([k, v]) => `<li><small class="muted">${k}</small><strong>${v}</strong></li>`).join('');
+  }
+  const tp = document.querySelector('#tipo-contrato');
+  if (tp) { tp.textContent = TIPO === 'factura' ? 'Por factura' : 'Prepago'; tp.className = 'pill-tipo ' + (TIPO === 'factura' ? 'factura' : 'prepago'); }
+  const tt = document.querySelector('#tarifa-tipo'); if (tt && c.tarifa) tt.textContent = c.tarifa;
+  pintarSemaforo();
 }
 
 function pintarFicha() {
