@@ -1,70 +1,90 @@
-# Prekilo
+<div align="center">
 
-PWA de energía prepago de Edesur. Muestra en grande los **kWh disponibles**, los **días y horas de luz** que quedan, la barra de progreso regresiva y el consumo real que reporta el medidor, con notificaciones push cuando el saldo baja del umbral.
+<img src="https://raw.githubusercontent.com/Mingo20/dtech/main/assets/brand/dg-logo-512.png" width="84" alt="DGTech" />
 
-Aplicación personal para el NIC **7014973** (Edesur, Santo Domingo).
+# SuperKilo
 
-## Cómo está hecha
+**Control del consumo eléctrico de Edesur para cualquier contrato dominicano, prepago o por factura, usando solo el número de contrato.**
 
-| Capa | Tecnología |
-| --- | --- |
-| Interfaz | HTML + CSS + JavaScript sin dependencias, dos layouts (móvil vertical tipo app nativa, escritorio horizontal tipo web) |
-| Sin internet | Service Worker + IndexedDB: la app arranca y navega completa sin red y recalcula el saldo con el promedio real |
-| Backend | Deno (Base44 functions, `prekiloApi`) — consulta el reporte oficial de teleconsumo de Edesur con solo el NIC |
-| Datos en la nube | Base44 (entidades `PkEstado`, `PkConsumoDia`, `PkRecarga`, `PkSuscripcion`) |
-| Hosting | GitHub Pages (`main`, raíz del repo) |
-| Notificaciones | Web Push (VAPID) enviadas por el backend Deno |
+![Versión](https://img.shields.io/badge/versión-2.4.0-FF6A13?style=flat-square) ![Estado](https://img.shields.io/badge/estado-Producción-2EA44F?style=flat-square) ![Tipo](https://img.shields.io/badge/tipo-PWA_%2B_backend_Base44-0B2545?style=flat-square) ![DGTech](https://img.shields.io/badge/by-DGTech-FF6A13?style=flat-square)
 
-## De dónde salen los datos
+[**Abrir la aplicación**](https://mingo20.github.io/prekilo/) · [Hub DGTech](https://mingo20.github.io/dtech/) · [Guía para agentes](AGENTS.md) · [Cambios](CHANGELOG.md)
 
-1. `teleconsumoapi.edesur.com.do/teleconsumos/GenerarURL?FechaReporte=dd/mm/aaaa&Nic=<NIC>` devuelve un hash de sesión.
-2. `teleconsumoapi.edesur.com.do/teleconsumos/GetDataTeleconsumoHash?hash=<hash>` devuelve el reporte: cliente, medidor, consumo diario y mensual, promedios y escala de precios.
+<img src="https://raw.githubusercontent.com/Mingo20/dtech/main/assets/shots/superkilo.jpg" alt="SuperKilo" width="720" />
 
-No hace falta usuario ni clave. El hash caduca, y se regenera en cada consulta: por eso la sincronización diaria de las 2:00 p. m. siempre obtiene datos frescos.
+</div>
 
-## Cálculo del saldo
+## El problema
 
-El medidor publica el consumo con un día de retraso. El saldo se calcula así:
+Los clientes de Edesur no ven su consumo real, no saben si una factura es justa y se enteran de las irregularidades tarde. Más del 80 % de los reclamos en RD son por facturación alta y la causa más común es la lectura estimada.
 
-```
-saldo = ancla_kWh + recargas − consumo_medido_desde_ancla − estimado_del_día_en_curso
-```
+## Qué hace
 
-El **ancla** es el último saldo real conocido (el que muestra el medidor). Se puede recalibrar desde Ajustes → "Saldo real del medidor". El estimado usa el promedio de los últimos 7 días medidos.
+- Registro con WhatsApp y número de contrato (un contrato por cuenta, validado en servidor)
+- Detección automática del tipo de contrato (prepago o factura) y adaptación de la interfaz
+- Consumo acumulado con ventanas de 3, 7 y 30 días, sin registro manual de recargas
+- Semáforo de consumo atípico y proyección de factura con la escala real de Edesur
+- Ficha del contrato: medidor, lecturas, promedios, histórico por período y parámetros del reporte
+- Histórico del medidor plegable, mapa de puntos de pago y hoja de reporte de avería
+- Alertas push con seis interruptores independientes: atípico, estimada, medidor, sin datos, proyección y resumen diario
 
-## API (`prekiloApi`)
+## Cómo está construido
 
-`POST https://ca-68f01a11.base44.app/functions/prekiloApi`
+**Tipo:** PWA + backend Base44
 
-| action | qué hace |
-| --- | --- |
-| `state` | saldo, días, horas, porcentaje, historial y configuración |
-| `sync` | consulta Edesur y guarda el consumo diario del medidor |
-| `daily` | sync + push si el saldo está por debajo del umbral (lo llama el trabajo de las 2 p. m.) |
-| `recarga` | `{kwh, monto_rd?}` registra una recarga |
-| `reanclar` | `{kwh, ts?}` fija el saldo real del medidor |
-| `config` | `{umbral, recarga_habitual}` |
-| `subscribe` | guarda la suscripción push del navegador |
-| `pushTest` | envía una notificación de prueba |
+PWA estática en GitHub Pages que llama a funciones Base44. Un workflow a la 1:00 a. m. (hora de RD) sincroniza todas las cuentas, evalúa los escenarios de alerta y envía los push.
 
-## Migrar el backend a Deno Deploy
+**Tecnologías**
 
-En `server/prekiloApi.ts` está el mismo backend listo para Deno Deploy (sin cuenta todavía). Para publicarlo:
+- HTML, CSS y JavaScript sin frameworks
+- Service Worker y manifest (PWA instalable)
+- Backend: funciones Deno en Base44
+- Notificaciones: Web Push con VAPID
+- Datos: API pública de teleconsumo de Edesur, solo con NIC
+- Mapa: Leaflet y OpenStreetMap
 
-```bash
-deployctl deploy --project=prekilo server/prekiloApi.ts
-```
+**Backend**
 
-Solo hay que cambiar el almacenamiento: hoy usa las entidades de Base44; en Deno Deploy puede usar `Deno.openKv()` o seguir llamando a las entidades de Base44 por REST con una API key.
+- prekiloApi (registro, estado, sync, push)
+- edekiloMedidor (ficha y lecturas)
+- edekiloAlertas (escenarios de alerta)
+- edekiloAvisos (preferencias por contrato)
+- edekiloResumen (resumen diario)
 
-## Instalación en el teléfono
+**Datos**
 
-Android (Chrome): abrir https://mingo20.github.io/prekilo/ → menú ⋮ → *Instalar aplicación*.
-iPhone (Safari): Compartir → *Añadir a pantalla de inicio*. Las notificaciones push en iOS solo funcionan desde la app instalada (iOS 16.4+).
+- PkCuenta (whatsapp, nic, token)
+- PkEstado (nic, clave, valor)
+- PkConsumoDia (nic, fecha, kwh)
+- PkRecarga (legado)
+- PkSuscripcion (endpoint push)
 
-## Desarrollo local
+## Datos sensibles
 
-```bash
-python3 -m http.server 8080
-# abrir http://localhost:8080
-```
+Datos personales de terceros: nombre, dirección y consumo asociados a un NIC. El acceso es por token de dispositivo, sin contraseña.
+
+## Reglas del proyecto
+
+- Las horas se muestran en formato 12 h dominicano (9:45 p.m.)
+- En prepago NO se pide registrar recargas: el indicador muestra consumo acumulado creciente
+- Los kWh disponibles NO son un saldo oficial de Edesur: se estiman y se corrigen al publicarse el día
+- Los reportes de Edesur llevan un día de atraso
+- Diseño: fondo blanco, grises claros, acentos naranja y azul marino
+
+## Pendientes conocidos
+
+- Verificar el WhatsApp con un código antes de crear la cuenta
+- Cifrar los tokens en reposo
+- Deuda, facturas y pagos requieren sesión en la oficina virtual de Edesur
+
+## Estructura del repositorio
+
+Consulta [AGENTS.md](AGENTS.md) para el mapa de archivos y las instrucciones de trabajo.
+
+## Parte de DGTech
+
+Este proyecto forma parte del ecosistema **DGTech**, un estudio de software dominicano que construye aplicaciones instalables para resolver problemas reales. Todas las aplicaciones están en [https://mingo20.github.io/dtech/](https://mingo20.github.io/dtech/).
+
+---
+
+<sub>© 2026 DGTech · Domingo Guerra · Todos los derechos reservados. Consulta el archivo NOTICE.</sub>
