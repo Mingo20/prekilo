@@ -757,8 +757,7 @@ function renderRec7(st) {
     const dia = String(r.fecha || '').slice(8, 10);
     return `<div class="b" data-l="${fFecha(r.fecha)}" data-v="${n1(r.kwh, 1)}">
       <span class="bv">${n1(r.kwh, 1)}</span>
-      <div class="bar-v rec" style="height:${h}px"></div>
-      <span class="lbl">${dia}</span></div>`;
+      <div class="bar-v rec" style="height:${h}px"></div></div>`;
   }).join('');
   if (tot) tot.textContent = '';
   bindBars(cont);
@@ -902,3 +901,173 @@ setTimeout(() => {
     });
   }
 }, 700);
+
+/* ================= Ficha, semáforo y proyección ================= */
+const MEDAPI = 'https://ca-68f01a11.base44.app/functions/edekiloMedidor';
+let FICHA = null;
+let TIPO = localStorage.getItem('sk_tipo') || '';
+
+const f2 = (v) => Number(v || 0).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const rd = (v) => 'RD$ ' + Number(v || 0).toLocaleString('es-DO', { maximumFractionDigits: 0 });
+
+function costoEscala(kwh, escala) {
+  let resto = Number(kwh || 0), total = 0;
+  for (const t of (escala || [])) {
+    const desde = Number(t.rangoDesde || 0);
+    const hasta = Number(t.rangoHasta || 0) || Infinity;
+    const cap = Math.min(resto, Math.max(0, hasta - desde));
+    if (cap > 0) { total += cap * Number(t.precio || 0); resto -= cap; }
+    if (resto <= 0) break;
+  }
+  return total || Number(kwh || 0) * 6.05;
+}
+
+async function cargarFicha() {
+  const token = localStorage.getItem('sk_token');
+  if (!token) return;
+  let d = await kvGet('ficha');
+  if (navigator.onLine) {
+    try {
+      const r = await fetch(MEDAPI, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+      const j = await r.json();
+      if (j && j.ok) { d = j; await kvSet('ficha', j); }
+    } catch (e) {}
+  }
+  if (!d || !d.ok) return;
+  FICHA = d;
+  if (!TIPO) {
+    const hayRecargas = (STATE && (STATE.recargas || []).length) || (STATE && STATE.recarga_habitual);
+    TIPO = hayRecargas ? 'prepago' : (d.telemedido ? 'prepago' : 'factura');
+    localStorage.setItem('sk_tipo', TIPO);
+  }
+  document.body.classList.toggle('modo-factura', TIPO === 'factura');
+  pintarFicha(); pintarSemaforo(); pintarProyeccion();
+  if (STATE) aplicarModo();
+}
+
+function pintarFicha() {
+  const c = FICHA.informacionCliente || {};
+  const kv = document.querySelector('#kv-cliente');
+  if (kv) {
+    const filas = [
+      ['Cliente', c.nombreCliente],
+      ['NIC', c.nic],
+      ['NIS', c.nis],
+      ['Medidor', c.numeroMedidor],
+      ['Marca', c.marcaMedidor],
+      ['Tarifa', c.tarifa],
+      ['Circuito', c.circuitoDistribucion],
+      ['Centro transf.', c.centroTransformacion],
+      ['Dirección', c.direccion],
+    ].filter((x) => x[1]);
+    kv.innerHTML = filas.map(([k, v]) => `<li><small class="muted">${k}</small><strong>${v}</strong></li>`).join('');
+  }
+  const tp = document.querySelector('#tipo-contrato');
+  if (tp) {
+    tp.textContent = TIPO === 'factura' ? 'Por factura' : 'Prepago';
+    tp.className = 'pill-tipo ' + (TIPO === 'factura' ? 'factura' : 'prepago');
+  }
+  const tt = document.querySelector('#tarifa-tipo');
+  if (tt && c.tarifa) tt.textContent = c.tarifa;
+  const ct = document.querySelector('#contrato-tarifa');
+  if (ct && c.nic) ct.textContent = 'NIC ' + c.nic;
+  const res = document.querySelector('#ficha-resumen');
+  const L = (FICHA.resumenLecturas || [])[0];
+  if (res && L) res.textContent = `Lectura ${f2(L.energiaActiva)} · ${fFecha(L.fecha)}`;
+
+  const body = document.querySelector('#ficha-body');
+  if (body) {
+    const ec = FICHA.escalaPrecios || [];
+    const mens = FICHA.historicoConsumoMensual || [];
+    const pro = FICHA.habitosConsumo || {};
+    const par = FICHA.parametros || {};
+    const lec = FICHA.resumenLecturas || [];
+    body.innerHTML = `
+      <div class="ficha-bloque"><strong class="fb-t">Lecturas del medidor</strong>
+        ${lec.map((l) => `<div class="fb-row"><span>${fFecha(l.fecha)}</span><b>${f2(l.energiaActiva)} kWh</b></div>`).join('') || '<p class="muted tiny">Sin lecturas.</p>'}</div>
+      <div class="ficha-bloque"><strong class="fb-t">Promedios que calcula Edesur</strong>
+        <div class="fb-row"><span>Entre semana</span><b>${f2(pro.promedioDiasSemana)} kWh/día</b></div>
+        <div class="fb-row"><span>Fin de semana</span><b>${f2(pro.promedioFinSemana)} kWh/día</b></div>
+        <div class="fb-row"><span>General</span><b>${f2(pro.promedioGeneral)} kWh/día</b></div></div>
+      <div class="ficha-bloque"><strong class="fb-t">Histórico por período</strong>
+        ${mens.map((m) => `<div class="fb-row"><span>${fFecha(m.fecha)}</span><b>${rd(m.importe)}</b></div>`).join('') || '<p class="muted tiny">Sin histórico.</p>'}</div>
+      <div class="ficha-bloque"><strong class="fb-t">Escala de precios</strong>
+        ${ec.map((e) => `<div class="fb-row"><span>${e.escala} kWh</span><b>RD$ ${f2(e.precio)}</b></div>`).join('')}</div>
+      <div class="ficha-bloque"><strong class="fb-t">Parámetros del reporte</strong>
+        <div class="fb-row"><span>Consumo publicado hasta</span><b>${fFecha(par.fechaHasta)}</b></div>
+        <div class="fb-row"><span>Tipo de contrato</span><b>${FICHA.telemedido ? 'Telemedido' : 'Lectura manual'}</b></div></div>`;
+  }
+}
+
+function pintarSemaforo() {
+  if (!STATE) return;
+  const hoy = STATE.hoy || {};
+  const hoyVal = Number(hoy.medido ?? hoy.estimado ?? 0);
+  const prom = Number(STATE.promedio_diario || 0) || 3.3;
+  const ratio = hoyVal / prom;
+  let nivel = 'ok', titulo = 'Consumo normal', texto = 'Tu día va dentro de tu promedio.';
+  if (!hoyVal) { nivel = 'warn'; titulo = 'Sin consumo reportado'; texto = 'El medidor no reportó hoy. Puede ser atraso o un corte.'; }
+  else if (ratio >= 2) { nivel = 'bad'; titulo = 'Consumo muy por encima'; texto = 'Casi el doble de tu promedio. Revisa equipos o una posible lectura estimada.'; }
+  else if (ratio >= 1.3) { nivel = 'warn'; titulo = 'Consumo atípico'; texto = 'Vas por encima de tu promedio del día. Ojo con el aire o la nevera.'; }
+  const dot = document.querySelector('#sem-dot'); if (dot) dot.className = 'sem-dot ' + nivel;
+  const t = document.querySelector('#sem-titulo'); if (t) t.textContent = titulo;
+  const p = document.querySelector('#sem-texto'); if (p) p.textContent = texto;
+  const f = document.querySelector('#sem-fill');
+  if (f) { f.style.width = Math.min(100, (ratio / 2) * 100).toFixed(0) + '%'; f.className = 'sem-fill ' + nivel; }
+  const h = document.querySelector('#sem-hoy'); if (h) h.textContent = `Hoy: ${f2(hoyVal)} kWh`;
+  const pr = document.querySelector('#sem-prom'); if (pr) pr.textContent = `Tu promedio: ${f2(prom)} kWh`;
+  const cu = document.querySelector('#sem-cuando'); if (cu) cu.textContent = hoy.medido != null ? 'Lectura del medidor' : 'Estimado';
+}
+
+function pintarProyeccion() {
+  const esc = FICHA.escalaPrecios || [];
+  const diario = FICHA.historicoConsumoDiario || [];
+  const ahora = new Date(Date.now() - 4 * 3600 * 1000);
+  const clave = ahora.toISOString().slice(0, 7);
+  const mes = diario.filter((x) => String(x.fecha).slice(0, 7) === clave);
+  const medidoMes = mes.reduce((s, x) => s + Number(x.consumo || 0), 0);
+  const diasMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate();
+  const dia = ahora.getDate();
+  const prom = Number(STATE?.promedio_diario || 3.3);
+  const proy = medidoMes + prom * Math.max(0, diasMes - dia);
+  const costo = costoEscala(proy, esc);
+  const k = document.querySelector('#proy-kwh'); if (k) k.textContent = n1(proy, 0) + ' kWh';
+  const r = document.querySelector('#proy-rd'); if (r) r.textContent = rd(costo);
+  const b = document.querySelector('#proy-barra'); if (b) b.style.width = Math.min(100, (dia / diasMes) * 100).toFixed(0) + '%';
+  const tr = document.querySelector('#proy-tramo');
+  let tramo = esc[0];
+  for (const t of esc) { if (proy >= Number(t.rangoDesde || 0)) tramo = t; }
+  if (tr && tramo) tr.textContent = 'Tramo ' + tramo.escala;
+  const n = document.querySelector('#proy-nota');
+  if (n) n.textContent = `Van ${f2(medidoMes)} kWh medidos en ${dia} días del ciclo, con tu promedio de ${f2(prom)} kWh/día.`;
+}
+
+function aplicarModo() {
+  if (TIPO !== 'factura' || !FICHA) return;
+  const diario = FICHA.historicoConsumoDiario || [];
+  const ahora = new Date(Date.now() - 4 * 3600 * 1000);
+  const clave = ahora.toISOString().slice(0, 7);
+  const medidoMes = diario.filter((x) => String(x.fecha).slice(0, 7) === clave).reduce((s, x) => s + Number(x.consumo || 0), 0);
+  const saldo = document.querySelector('#saldo');
+  if (saldo) saldo.textContent = n1(medidoMes, 0);
+  const sub = document.querySelector('#hero-sub');
+  if (sub && !(STATE && STATE.alerta)) sub.textContent = 'kWh consumidos este ciclo';
+  const chips = document.querySelectorAll('#view-inicio .chip small');
+  if (chips[0]) chips[0].textContent = 'Días del ciclo';
+  if (chips[1]) chips[1].textContent = 'Estimado RD$';
+  const r = document.querySelector('#proy-rd');
+  if (chips[1] && r) chips[1].parentElement.querySelector('strong').textContent = r.textContent;
+}
+
+function wireFicha() {
+  const btn = document.querySelector('#btn-ficha');
+  const body = document.querySelector('#ficha-body');
+  if (btn && body) btn.addEventListener('click', () => {
+    const abrir = body.hidden;
+    body.hidden = !abrir;
+    btn.setAttribute('aria-expanded', String(abrir));
+    btn.classList.toggle('abierto', abrir);
+  });
+  setTimeout(cargarFicha, 1500);
+}
+window.addEventListener('load', wireFicha);

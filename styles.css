@@ -462,3 +462,37 @@ body.no-scroll{overflow:hidden}
 .gate-legal{text-align:center;margin-top:4px;line-height:1.5}
 #lista-tarifa li,#kv-cliente li{justify-content:center;text-align:center;align-items:center;gap:2px}
 #lista-tarifa .lft,#kv-cliente .lft{align-items:center;text-align:center}
+
+/* ================= Ficha, semáforo y proyección ================= */
+.pill-tipo{font-size:11px;font-weight:750;letter-spacing:.4px;text-transform:uppercase;padding:4px 9px;border-radius:99px;background:#EFEFF2;color:#42536b}
+.pill-tipo.prepago{background:rgba(255,106,19,.12);color:#C24E08}
+.pill-tipo.factura{background:rgba(11,37,69,.09);color:#0B2545}
+.kv li{display:flex;justify-content:space-between;align-items:baseline;gap:14px;text-align:left}
+.kv li strong{font-weight:650;text-align:right}
+.list li{display:flex;justify-content:space-between;gap:14px}
+.semaforo .sem-row{display:flex;gap:12px;align-items:flex-start;margin:6px 0 12px}
+.sem-dot{width:14px;height:14px;border-radius:99px;flex:0 0 14px;margin-top:4px;background:#b9c2cf;box-shadow:0 0 0 4px rgba(185,194,207,.18)}
+.sem-dot.ok{background:#1FA971;box-shadow:0 0 0 4px rgba(31,169,113,.16)}
+.sem-dot.warn{background:#E8890C;box-shadow:0 0 0 4px rgba(232,137,12,.16)}
+.sem-dot.bad{background:#D6382A;box-shadow:0 0 0 4px rgba(214,56,42,.16)}
+.sem-txt strong{display:block;font-size:15px}
+.sem-barra{height:8px;border-radius:99px;background:#EEF0F3;overflow:hidden}
+.sem-barra.alt{margin:12px 0 8px}
+.sem-fill{height:100%;border-radius:99px;background:#b9c2cf;transition:width .5s ease}
+.sem-fill.ok{background:#1FA971}
+.sem-fill.warn{background:#E8890C}
+.sem-fill.bad{background:#D6382A}
+.sem-fill.naranja{background:#FF6A13}
+.sem-pies{display:flex;justify-content:space-between;margin-top:7px;gap:8px;flex-wrap:wrap}
+.mini-stat{background:#F7F8FA;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:3px}
+.mini-stat strong{font-size:19px;letter-spacing:-.5px}
+.mini-gap{gap:10px;margin:4px 0}
+.ficha-bloque{padding:10px 0;border-bottom:1px solid var(--line)}
+.ficha-bloque:last-child{border-bottom:0;padding-bottom:0}
+.fb-t{display:block;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:#7b8798;margin-bottom:6px}
+.fb-row{display:flex;justify-content:space-between;gap:14px;font-size:13.5px;padding:3px 0}
+.fb-row b{font-weight:650}
+body.modo-factura #card-rec7{display:none}
+.steps{list-style:none;counter-reset:s;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+.steps li{counter-increment:s;position:relative;padding-left:34px;font-size:13.5px;line-height:1.45}
+.steps li:before{content:counter(s);position:absolute;left:0;top:-1px;width:23px;height:23px;border-radius:99px;background:rgba(255,106,19,.12);color:#C24E08;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center}

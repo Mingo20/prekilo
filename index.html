@@ -113,10 +113,8 @@
         <div class="card">
           <div class="card-h">
             <h3>Últimas 7 recargas</h3>
-            <button class="btn ghost xs" data-view="recargas" id="btn-ver-recargas">Historial</button>
           </div>
           <div class="spark" id="rec7"></div>
-          <p class="muted tiny" id="rec7-tot">—</p>
         </div>
       </section>
 
@@ -196,25 +194,67 @@
       <!-- SERVICIOS -->
       <section class="view" id="view-servicios">
         <div class="card">
+          <div class="card-h"><h3>Tu contrato</h3><span class="pill-tipo" id="tipo-contrato">—</span></div>
+          <ul class="kv" id="kv-cliente"><li class="empty">Cargando datos del contrato…</li></ul>
+        </div>
+
+        <div class="card semaforo" id="card-semaforo">
+          <div class="card-h"><h3>Semáforo de consumo</h3><span class="muted tiny" id="sem-cuando">—</span></div>
+          <div class="sem-row">
+            <span class="sem-dot" id="sem-dot"></span>
+            <div class="sem-txt">
+              <strong id="sem-titulo">—</strong>
+              <p class="muted tiny" id="sem-texto">—</p>
+            </div>
+          </div>
+          <div class="sem-barra"><div class="sem-fill" id="sem-fill"></div></div>
+          <div class="sem-pies"><span class="muted tiny" id="sem-hoy">—</span><span class="muted tiny" id="sem-prom">—</span></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Proyección del ciclo</h3><span class="muted tiny" id="proy-tramo">—</span></div>
+          <div class="grid-2 mini-gap">
+            <div class="mini-stat">
+              <small class="muted">kWh proyectados</small>
+              <strong id="proy-kwh">—</strong>
+            </div>
+            <div class="mini-stat">
+              <small class="muted">Estimado a pagar</small>
+              <strong id="proy-rd">—</strong>
+            </div>
+          </div>
+          <div class="sem-barra alt"><div class="sem-fill naranja" id="proy-barra"></div></div>
+          <p class="muted tiny" id="proy-nota">—</p>
+        </div>
+
+        <div class="card">
+          <div class="card-h"><h3>Tarifa por escala</h3><span class="muted tiny" id="tarifa-tipo">—</span></div>
+          <ul class="list" id="lista-tarifa"><li class="empty">Sincroniza para ver la escala de precios.</li></ul>
+        </div>
+
+        <div class="card" id="card-ficha">
+          <button class="medidor-h" id="btn-ficha" aria-expanded="false" aria-controls="ficha-body">
+            <span class="medidor-t">
+              <strong>Ficha del contrato</strong>
+              <small class="muted tiny" id="ficha-resumen">Datos técnicos del medidor y las lecturas</small>
+            </span>
+            <i data-ico="chev" class="chev"></i>
+          </button>
+          <div class="medidor-body" id="ficha-body" hidden></div>
+        </div>
+
+        <div class="card">
           <div class="card-h"><h3>Servicios Edesur</h3><span class="muted tiny">Accesos directos</span></div>
           <div class="serv-grid">
-            <a class="serv" href="https://ov.edesur.com.do/PagoCuentas" target="_blank" rel="noopener">
+            <a class="serv" id="serv-recargar" href="https://ov.edesur.com.do/PagoCuentas" target="_blank" rel="noopener">
               <i data-ico="bolt"></i><strong>Recargar energía</strong><small>Prepago en línea</small></a>
             <button class="serv" data-sheet="averia">
               <i data-ico="alert"></i><strong>Reportar avería</strong><small>Cómo avisar a Edesur</small></button>
             <button class="serv" data-sheet="pagos">
               <i data-ico="pin"></i><strong>Puntos de pago</strong><small>Mapa y direcciones</small></button>
-            <a class="serv" href="https://www.edesur.com.do/servicios/" target="_blank" rel="noopener">
-              <i data-ico="grid"></i><strong>Más servicios</strong><small>Oficina virtual</small></a>
+            <button class="serv" data-sheet="reclamo">
+              <i data-ico="alert"></i><strong>Reclamar factura</strong><small>Pasos y evidencia</small></button>
           </div>
-        </div>
-        <div class="card">
-          <div class="card-h"><h3>Tarifa por escala</h3><span class="muted tiny" id="tarifa-tipo">BTS1</span></div>
-          <ul class="list" id="lista-tarifa"><li class="empty">Sincroniza para ver la escala de precios.</li></ul>
-        </div>
-        <div class="card">
-          <div class="card-h"><h3>Tu contrato</h3><span class="muted tiny" id="contrato-tarifa">—</span></div>
-          <ul class="kv" id="kv-cliente"></ul>
         </div>
       </section>
 
@@ -275,6 +315,20 @@
       </div>
     </div>
 
+    <div class="sheet" id="sheet-reclamo" hidden role="dialog" aria-modal="true" aria-label="Reclamar una factura">
+      <div class="sheet-grab"><span></span></div>
+      <div class="sheet-head"><h3>Reclamar una factura</h3><p class="muted tiny">Ocho de cada diez reclamos en RD son por facturación alta.</p></div>
+      <div class="sheet-body">
+        <ol class="steps">
+          <li><strong>Revisa el salto.</strong> Compara ese día en Consumo. Si un día solo se disparó, es fuga o lectura estimada.</li>
+          <li><strong>Verifica la lectura.</strong> Mira tu medidor y compáralo con el histórico de la ficha.</li>
+          <li><strong>Reúne la evidencia.</strong> Ten a mano NIC, número de medidor y los días con consumo atípico.</li>
+          <li><strong>Reclama.</strong> Pide número de reclamo; sin ese número el caso no avanza.</li>
+        </ol>
+        <a class="btn primary" href="tel:8097479393"><i data-ico="phone"></i>Llamar a Edesur</a>
+        <a class="btn ghost" href="https://wa.me/18097479393" target="_blank" rel="noopener">Escribir por WhatsApp</a>
+      </div>
+    </div>
     <div class="sheet" id="sheet-pagos" hidden role="dialog" aria-modal="true" aria-label="Puntos de pago">
       <div class="sheet-grab"><span></span></div>
       <div class="sheet-head">
