@@ -122,6 +122,10 @@
 
       <!-- CONSUMO -->
       <section class="view" id="view-consumo">
+        <div class="card">
+          <div class="card-h"><h3>Consumo diario</h3><span class="muted tiny">30 días</span></div>
+          <div class="chart-wrap"><div class="tip" id="tip30" hidden></div><div class="chart" id="chart30"></div></div>
+        </div>
         <div class="kpi-grid">
           <div class="card mini">
             <small class="muted">Promedio general</small>
@@ -138,7 +142,6 @@
           <div class="card mini mini-hoy">
             <small class="muted">Hoy</small>
             <strong id="hoy-kwh">—</strong><span class="muted tiny">kWh · <em id="hoy-fecha">—</em></span>
-            <p class="muted tiny nota-mini" id="hoy-nota">—</p>
           </div>
         </div>
 
@@ -166,10 +169,6 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-h"><h3>Consumo diario</h3><span class="muted tiny">30 días</span></div>
-          <div class="chart-wrap"><div class="tip" id="tip30" hidden></div><div class="chart" id="chart30"></div></div>
-        </div>
       </section>
 
       <!-- RECARGAS -->
@@ -293,6 +292,22 @@
       </div>
     </div>
 
+    <div class="gate" id="gate" hidden>
+      <div class="gate-card">
+        <div class="gate-brand">
+          <span class="mark sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13.4 2 4 13.4h6.1L9.8 22 20 10.2h-6.3L13.4 2Z" fill="currentColor"/></svg></span>
+          <div><strong>SuperKilo</strong><small class="muted">Tus kilovatios, siempre a mano</small></div>
+        </div>
+        <h2>Crea tu cuenta</h2>
+        <p class="muted tiny">Con tu WhatsApp y tu número de contrato de Edesur. Cada cuenta maneja un solo contrato.</p>
+        <label class="field">WhatsApp<input id="g-wa" type="tel" inputmode="numeric" placeholder="809 000 0000" autocomplete="tel" /></label>
+        <label class="field">Contrato de Edesur<input id="g-nic" type="tel" inputmode="numeric" placeholder="7014973" /></label>
+        <label class="field">kWh que tienes ahora (opcional)<input id="g-kwh" type="number" inputmode="decimal" placeholder="16.5" /></label>
+        <p class="gate-msg" id="g-msg"></p>
+        <button class="btn primary" id="g-entrar">Entrar a SuperKilo</button>
+        <p class="muted tiny gate-legal">Al entrar autorizas que SuperKilo consulte tu consumo en el portal de Edesur usando tu número de contrato.</p>
+      </div>
+    </div>
     <nav class="tabbar" aria-label="Navegación">
       <button class="tab is-active" data-view="inicio"><i data-ico="home"></i><span>Inicio</span></button>
       <button class="tab" data-view="consumo"><i data-ico="chart"></i><span>Consumo</span></button>
@@ -304,11 +319,6 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<div id="dbg" style="display:none;position:fixed;bottom:70px;left:8px;right:8px;z-index:99;background:#2a0d10;color:#ffb3ba;font:11px monospace;padding:8px;border-radius:8px;white-space:pre-wrap;max-height:40vh;overflow:auto"></div>
-<script>
-window.addEventListener('error',function(e){var d=document.getElementById('dbg');if(d){d.textContent='ERR: '+(e.message||e.type)+' @'+(e.filename||'').split('/').pop()+':'+(e.lineno||'');d.style.display='block';}});
-window.addEventListener('unhandledrejection',function(e){var d=document.getElementById('dbg');if(d){d.textContent='REJ: '+((e.reason&&(e.reason.message||e.reason))||'');d.style.display='block';}});
-</script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="app.js" defer></script>
 </body>

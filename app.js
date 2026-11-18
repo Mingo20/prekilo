@@ -71,15 +71,70 @@ async function kvClear() {
 }
 
 /* ---------------- API ---------------- */
+let TOKEN = localStorage.getItem('sk_token') || '';
+
 async function api(action, extra = {}) {
   const r = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...extra })
+    body: JSON.stringify({ action, token: TOKEN, ...extra })
   });
   const j = await r.json();
+  if (j && j.ok === false && j.error === 'sesion') { abrirGate(); throw new Error('sesion'); }
   if (j && j.ok === false && j.error) throw new Error(j.error);
   return j;
+}
+
+function abrirGate(msg) {
+  const g = document.querySelector('#gate');
+  if (!g) return;
+  g.hidden = false;
+  document.body.style.overflow = 'hidden';
+  const m = document.querySelector('#g-msg');
+  if (m) m.textContent = msg || '';
+}
+
+function cerrarGate() {
+  const g = document.querySelector('#gate');
+  if (g) g.hidden = true;
+  document.body.style.overflow = '';
+}
+
+async function registrar() {
+  const wa = (document.querySelector('#g-wa') || {}).value || '';
+  const nic = (document.querySelector('#g-nic') || {}).value || '';
+  const kwh = (document.querySelector('#g-kwh') || {}).value || '';
+  const msg = document.querySelector('#g-msg');
+  const btn = document.querySelector('#g-entrar');
+  if (msg) msg.textContent = '';
+  if (wa.replace(/\D/g, '').length < 10) { if (msg) msg.textContent = 'Escribe tu WhatsApp completo.'; return; }
+  if (nic.replace(/\D/g, '').length < 5) { if (msg) msg.textContent = 'Escribe tu número de contrato.'; return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Consultando Edesur…'; }
+  try {
+    const r = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'registrar', whatsapp: wa, nic, kwh })
+    });
+    const j = await r.json();
+    if (!j.ok) {
+      if (msg) msg.textContent = r.status === 422
+        ? 'Edesur no está respondiendo ahora mismo. Intenta de nuevo en unos minutos.'
+        : (j.error || 'No pude crear la cuenta.');
+      return;
+    }
+    TOKEN = j.token || '';
+    localStorage.setItem('sk_token', TOKEN);
+    localStorage.setItem('sk_nic', String(j.nic || ''));
+    cerrarGate();
+    render(j);
+    await kvSet('state', j);
+    toast('Cuenta lista · contrato ' + (j.nic || ''));
+  } catch (e) {
+    if (msg) msg.textContent = 'Sin conexión con el servidor. Intenta de nuevo.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Entrar a SuperKilo'; }
+  }
 }
 
 /* ---------------- Estado ---------------- */
@@ -125,7 +180,15 @@ const fFecha = (s) => {
   const [y, m, d] = String(s).slice(0, 10).split('-').map(Number);
   return `${d} ${MESES[m - 1]} ${y}`;
 };
-const fHora = (iso) => (iso ? String(iso).slice(11, 16) : '—');
+const fHora = (iso) => {
+  if (!iso) return '—';
+  const s = String(iso);
+  const hh = Number(s.slice(11, 13));
+  const mm = s.slice(14, 16) || '00';
+  if (Number.isNaN(hh)) return '—';
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${h12}:${mm} ${hh < 12 ? 'a.m.' : 'p.m.'}`;
+};
 const fNum = (v) => Number(v || 0).toLocaleString('es-DO', { maximumFractionDigits: 2 });
 
 function toast(msg) {
@@ -255,16 +318,6 @@ function render(st) {
   $('#kpi-entre').textContent = n1(pr.promedioDiasSemana ?? prom, 2);
   $('#kpi-fin').textContent = n1(pr.promedioFinSemana ?? prom, 2);
 
-  // Lista consumo
-  const lc = $('#lista-consumo');
-  lc.innerHTML = (st.consumos || []).slice(0, 14).map((x) => {
-    const d = new Date(x.fecha + 'T12:00:00');
-    const nombre = d.toLocaleDateString('es-DO', { weekday: 'long' });
-    return `<li><span class="lft"><strong style="text-transform:capitalize">${nombre}</strong><small>${fFecha(x.fecha)}</small></span>
-      <span class="kwh-v">${n1(x.kwh, 2)} kWh</span></li>`;
-  }).join('');
-  const med = st.medidor;
-  $('#med-linea').textContent = med ? `Lectura ${fNum(med.energiaActiva)} · ${fFecha(med.fecha)}` : '—';
 
   // Recargas
   const recs = st.recargas || [];
@@ -516,6 +569,8 @@ function wire() {
   $$('[data-view]').forEach((b) => b.addEventListener('click', () => go(b.dataset.view)));
   $('#btn-refresh').addEventListener('click', sincronizar);
   $('#btn-sync2').addEventListener('click', sincronizar);
+  const gEntrar = document.querySelector('#g-entrar');
+  if (gEntrar) gEntrar.addEventListener('click', registrar);
 
   // Tocar una barra de los ultimos 7 dias
   const sp = $('#spark7');
@@ -645,7 +700,9 @@ function wire() {
   }
 
   const cached = await kvGet('state');
-  if (cached) { render(cached); setConn(navigator.onLine ? 'on' : 'off', navigator.onLine ? 'En línea' : 'Sin conexión'); }
+  if (cached && TOKEN) { render(cached); setConn(navigator.onLine ? 'on' : 'off', navigator.onLine ? 'En línea' : 'Sin conexión'); }
+
+  if (!TOKEN) { abrirGate(); pushUI(); return; }
 
   await cargar('state', true);
   pushUI();
@@ -673,8 +730,22 @@ function renderRec7(st) {
   const recs = (st.recargas || []).slice(-7);
   const tot = document.querySelector('#rec7-tot');
   if (!recs.length) {
+    const ult = (st.consumos || []).slice(0, 7).reverse();
+    if (ult.length) {
+      const maxC = Math.max(...ult.map((x) => Number(x.kwh || 0)), 1);
+      cont.innerHTML = ult.map((x) => {
+        const h = Math.max(12, (Number(x.kwh || 0) / maxC) * 76);
+        return `<div class="b" data-l="${fFecha(x.fecha)}" data-v="${n1(x.kwh, 2)}">
+          <span class="bv">${n1(x.kwh, 2)}</span>
+          <div class="bar-v rec" style="height:${h}px"></div>
+          <span class="lbl">${String(x.fecha).slice(8, 10)}</span></div>`;
+      }).join('');
+      if (tot) tot.textContent = 'Consumo real de Edesur';
+      bindBars(cont);
+      return;
+    }
     cont.innerHTML = '<p class="muted tiny">Aún no hay recargas registradas.</p>';
-    if (tot) tot.textContent = 'Registra lo que compras para ver el gráfico.';
+    if (tot) tot.textContent = '';
     return;
   }
   const maxR = Math.max(...recs.map((r) => Number(r.kwh || 0)), 1);
@@ -686,7 +757,7 @@ function renderRec7(st) {
       <div class="bar-v rec" style="height:${h}px"></div>
       <span class="lbl">${dia}</span></div>`;
   }).join('');
-  if (tot) tot.textContent = `${recs.length} ${recs.length===1?'recarga':'recargas'} · ${n1(recs.reduce((s, r) => s + Number(r.kwh || 0), 0), 1)} kWh en total`;
+  if (tot) tot.textContent = '';
   bindBars(cont);
 }
 

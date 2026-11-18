@@ -447,3 +447,18 @@ body.no-scroll{overflow:hidden}
   .kpi-grid{grid-template-columns:repeat(4,1fr)}
   #view-consumo .kpi-grid{grid-template-columns:1fr 1fr}
 }
+
+/* ================= Registro / SaaS ================= */
+.gate{position:fixed;inset:0;z-index:120;background:rgba(255,255,255,.97);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:18px;overflow:auto}
+.gate[hidden]{display:none}
+.gate-card{width:100%;max-width:430px;background:#fff;border:1px solid var(--line);border-radius:24px;padding:22px;box-shadow:0 30px 60px -30px rgba(11,37,69,.45);display:flex;flex-direction:column;gap:10px}
+.gate-brand{display:flex;gap:10px;align-items:center;margin-bottom:4px}
+.gate-brand strong{font-size:20px;letter-spacing:-.3px;display:block;line-height:1.1}
+.gate-card h2{margin:2px 0 0;font-size:23px;letter-spacing:-.4px}
+.field{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:650;color:#33445e;letter-spacing:.1px}
+.field input{border:1px solid var(--line2);border-radius:13px;padding:13px 14px;font-size:16px;background:#F7F8FA;color:var(--txt);outline:none;transition:border-color .18s,background .18s}
+.field input:focus{border-color:#FF6A13;background:#fff}
+.gate-msg{color:#D6382A;font-size:12px;min-height:15px;margin:0}
+.gate-legal{text-align:center;margin-top:4px;line-height:1.5}
+#lista-tarifa li,#kv-cliente li{justify-content:center;text-align:center;align-items:center;gap:2px}
+#lista-tarifa .lft,#kv-cliente .lft{align-items:center;text-align:center}

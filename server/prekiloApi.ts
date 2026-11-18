@@ -1,231 +1,172 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.54';
 
 /**
- * Prekilo API — backend Deno (Base44 functions)
- * Consulta el reporte oficial de teleconsumo de Edesur con solo el NIC,
- * guarda el consumo diario real y calcula el saldo de kWh disponible.
+ * SuperKilo API — backend Deno sobre Base44.
+ * SaaS: registro con WhatsApp + contrato (NIC). Un contrato por cuenta.
  *
- * Acciones (POST body.action):
- *   state     -> estado calculado (saldo, dias, horas, historial)
- *   sync      -> jala el reporte de Edesur y actualiza el consumo del medidor
- *   daily     -> sync + aviso push si el saldo esta por debajo del umbral
- *   recarga   -> registra una recarga de kWh
- *   reanclar  -> fija el saldo real que muestra el medidor
- *   config    -> guarda umbral y recarga habitual
- *   subscribe -> guarda la suscripcion push del navegador
- *   pushTest  -> envia una notificacion de prueba
+ * Acciones: registrar | estado | sync | daily | recarga | reanclar | config | subscribe
+ * Todas menos registrar exigen token de la cuenta.
  */
 
-const NIC = '7014973';
 const VAPID_PUBLIC = 'BIqtPx_TyqDS0xMo25-mb0p40Yd6Fuy9R0kN8Iw5xte_v1Ff6LVeLLFlBlEepBVCY8v21I9Q3oZjLhwBknRU0F4';
 const VAPID_PRIVATE = '2mGN0otHFzSqiQCsigPh5RLVW_WjNOtCsUYg9Eguqe0';
 const VAPID_SUBJECT = 'mailto:dtech.rd@gmail.com';
-
-const DEFAULT_CONFIG = { umbral: 6, recarga_habitual: 16, promedio_manual: null };
+const DEFAULT_CONFIG = { umbral: 6, recarga_habitual: 16 };
 const FALLBACK_AVG = 3.26;
-const DR_MS = -4 * 3600 * 1000; // America/Santo_Domingo (UTC-4, sin horario de verano)
+const DR_MS = -4 * 3600 * 1000;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
+const json = (d: unknown, s = 200) =>
+  new Response(JSON.stringify(d), { status: s, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
-  });
-}
-
-// Reloj de pared en Republica Dominicana
-function drNow() {
-  return new Date(Date.now() + DR_MS);
-}
-function drDate(d = drNow()) {
-  return d.toISOString().slice(0, 10);
-}
-function drIso(d = drNow()) {
-  return d.toISOString().slice(0, 19);
-}
-function round2(n: number) {
-  return Math.round(n * 100) / 100;
-}
-function hoursBetween(aIso: string, bIso: string) {
-  return (new Date(bIso + 'Z').getTime() - new Date(aIso + 'Z').getTime()) / 3600000;
-}
-function addDays(dateStr: string, n: number) {
-  const d = new Date(dateStr + 'T00:00:00Z');
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const drNow = () => new Date(Date.now() + DR_MS);
+const drDate = (d = drNow()) => d.toISOString().slice(0, 10);
+const drIso = (d = drNow()) => d.toISOString().slice(0, 19);
+const addDays = (fecha: string, n: number) => {
+  const d = new Date(fecha + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
-}
-
-async function getEstado(base44: any, clave: string) {
-  const page = await base44.asServiceRole.entities.PkEstado.filter({ clave }, { limit: 1 });
-  const rec = page?.items?.[0];
-  if (!rec) return null;
-  try {
-    return { id: rec.id, data: JSON.parse(rec.valor || '{}') };
-  } catch {
-    return { id: rec.id, data: {} };
-  }
-}
-
-async function setEstado(base44: any, clave: string, data: unknown) {
-  const valor = JSON.stringify(data);
-  const cur = await getEstado(base44, clave);
-  if (cur?.id) {
-    await base44.asServiceRole.entities.PkEstado.update(cur.id, { clave, valor });
-  } else {
-    await base44.asServiceRole.entities.PkEstado.create({ clave, valor });
-  }
-  return data;
-}
+};
+const hoursBetween = (a: string, b: string) =>
+  (new Date(b + 'Z').getTime() - new Date(a + 'Z').getTime()) / 3600000;
 
 /* ---------------- Edesur ---------------- */
 
-async function consultarEdesur() {
-  const hoy = drNow();
-  const fecha = `${String(hoy.getUTCDate()).padStart(2, '0')}/${String(hoy.getUTCMonth() + 1).padStart(2, '0')}/${hoy.getUTCFullYear()}`;
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36',
-    'Origin': 'https://ov.edesur.com.do',
-    'Referer': 'https://ov.edesur.com.do/',
-  };
-  const urlGen = `https://teleconsumoapi.edesur.com.do/teleconsumos/GenerarURL?FechaReporte=${encodeURIComponent(fecha)}&Nic=${NIC}`;
-  const r1 = await fetch(urlGen, { headers });
-  const j1 = await r1.json();
-  const hash = j1?.message;
-  if (!hash) {
-    return { ok: false, error: j1?.Message || 'Edesur no devolvio el enlace del reporte', raw: j1 };
-  }
-  const r2 = await fetch(`https://teleconsumoapi.edesur.com.do/teleconsumos/GetDataTeleconsumoHash?hash=${encodeURIComponent(hash)}`, { headers });
-  const j2 = await r2.json();
-  if (!j2?.object) {
-    return { ok: false, error: j2?.Message || 'Reporte de teleconsumo no disponible', raw: j2 };
-  }
-  return { ok: true, reporte: j2.object, hash };
+async function edesurReporte(nic: string) {
+  const d = drNow();
+  const [y, m, dd] = d.toISOString().slice(0, 10).split('-');
+  const fecha = `${dd}/${m}/${y}`;
+  const H = { Origin: 'https://ov.edesur.com.do', Referer: 'https://ov.edesur.com.do/' };
+  const r1 = await fetch(
+    `https://teleconsumoapi.edesur.com.do/teleconsumos/GenerarURL?FechaReporte=${fecha}&Nic=${nic}`,
+    { headers: H },
+  );
+  const j1: any = await r1.json();
+  if (!j1?.message) throw new Error('Edesur no generó el reporte');
+  const r2 = await fetch(
+    `https://teleconsumoapi.edesur.com.do/teleconsumos/GetDataTeleconsumoHash?hash=${j1.message}`,
+    { headers: H },
+  );
+  const j2: any = await r2.json();
+  const o = j2?.object;
+  if (!o || !o.informacionCliente) throw new Error('Contrato sin datos en Edesur');
+  return o;
 }
 
-/* ---------------- Calculo ---------------- */
+async function nicTelemedido(nic: string) {
+  const r = await fetch(
+    `https://ovapi.edesur.com.do/ovapi/IndraComplaints/checkContractTelemedido?NIC=${nic}`,
+    { headers: { Origin: 'https://ov.edesur.com.do', Referer: 'https://ov.edesur.com.do/' } },
+  );
+  const t = (await r.text()).trim();
+  return t === '1';
+}
 
-function computeState(opts: {
-  anchor: { kwh: number; ts: string };
-  config: { umbral: number; recarga_habitual: number; promedio_manual: number | null };
-  consumos: { fecha: string; kwh: number; tipo_dia?: string }[];
-  recargas: { fecha: string; kwh: number }[];
-  lastSync?: any;
-}) {
-  const { anchor, config, consumos, recargas, lastSync } = opts;
-  const ahora = drIso();
+/* ---------------- Datos por contrato ---------------- */
+
+async function lista(base44: any, entidad: string, nic: string, extra: any = {}) {
+  const r = await base44.asServiceRole.entities[entidad].filter({ nic, ...extra }, { limit: 400 });
+  return r?.items ?? [];
+}
+
+async function leerTodo(base44: any, nic: string) {
+  const estados = await lista(base44, 'PkEstado', nic);
+  const get = (clave: string) => {
+    const e = estados.find((x: any) => x.clave === clave);
+    if (!e) return null;
+    try { return JSON.parse(e.valor); } catch { return null; }
+  };
+  const consumos = (await lista(base44, 'PkConsumoDia', nic)).map((c: any) => ({ fecha: c.fecha, kwh: Number(c.kwh) }));
+  const recargas = (await lista(base44, 'PkRecarga', nic)).map((r: any) => ({
+    id: r.id, fecha: r.fecha, kwh: Number(r.kwh), monto_rd: r.monto_rd ?? null, nota: r.nota ?? '',
+  }));
+  return { anchor: get('anchor'), config: get('config'), sync: get('sync'), consumos, recargas };
+}
+
+async function guardarEstado(base44: any, nic: string, clave: string, valor: any) {
+  const found = await base44.asServiceRole.entities.PkEstado.filter({ nic, clave }, { limit: 1 });
+  const rec = found?.items?.[0];
+  const data = { nic, clave, valor: JSON.stringify(valor) };
+  if (rec) await base44.asServiceRole.entities.PkEstado.update(rec.id, data);
+  else await base44.asServiceRole.entities.PkEstado.create(data);
+}
+
+/* ---------------- Cálculo ---------------- */
+
+function calcular(anchorIn: any, config: any, consumos: any[], recargas: any[], sync: any) {
   const hoy = drDate();
-
-  // Orden y mapa de consumo medido
-  const mapa = new Map<string, number>();
-  for (const c of consumos || []) {
-    if (c?.fecha) mapa.set(String(c.fecha).slice(0, 10), Number(c.kwh) || 0);
-  }
-
-  // Promedio real de los ultimos 7 dias medidos
-  const medidos = [...mapa.entries()].filter(([f, v]) => v > 0 && f <= hoy).sort((a, b) => (a[0] < b[0] ? -1 : 1));
-  const ultimos7 = medidos.slice(-7);
-  const avg7 = ultimos7.length ? ultimos7.reduce((s, x) => s + x[1], 0) / ultimos7.length : FALLBACK_AVG;
-  const dailyAvg = round2(config?.promedio_manual || avg7 || FALLBACK_AVG);
-
+  const ahora = drIso();
+  const anchor = anchorIn ?? { kwh: 0, ts: `${hoy}T00:00:00` };
   const anchorDate = String(anchor.ts).slice(0, 10);
-  const anchorHour = Number(String(anchor.ts).slice(11, 13)) + Number(String(anchor.ts).slice(14, 16)) / 60;
+  const anchorHour = Number(String(anchor.ts).slice(11, 13)) || 0;
 
-  // 1) dias completos despues del dia del ancla
-  let consumido = 0;
-  for (const [f, v] of medidos) {
-    if (f > anchorDate) consumido += v;
-  }
-  // 2) la parte restante del dia del ancla, si ya esta medida
+  const mapa = new Map<string, number>();
+  consumos.forEach((c) => { if (c.fecha <= hoy) mapa.set(c.fecha, Number(c.kwh)); });
+  const medidos = [...mapa.entries()].filter(([, v]) => v > 0).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+  const ult7 = medidos.slice(-7);
+  const avg = ult7.length
+    ? ult7.reduce((s, [, v]) => s + v, 0) / ult7.length
+    : Number(config.promedio_manual) || FALLBACK_AVG;
+
+  let medido = 0;
+  for (const [f, v] of medidos) if (f > anchorDate) medido += v;
   const medidoAncla = mapa.get(anchorDate);
-  if (medidoAncla && anchorDate < hoy) {
-    consumido += medidoAncla * ((24 - anchorHour) / 24);
-  }
+  if (medidoAncla && anchorDate < hoy) medido += medidoAncla * ((24 - anchorHour) / 24);
 
-  // 3) lo que aun no esta medido: desde el corte de medicion hasta ahora
   const lastMeasured = medidos.length ? medidos[medidos.length - 1][0] : anchorDate;
   const coveredEnd = (lastMeasured && lastMeasured >= anchorDate) ? addDays(lastMeasured, 1) + 'T00:00:00' : anchor.ts;
   const desde = coveredEnd > anchor.ts ? coveredEnd : anchor.ts;
-  const horasEstimadas = Math.max(0, hoursBetween(desde, ahora));
-  const estimado = dailyAvg * (horasEstimadas / 24);
+  const estimado = avg * (Math.max(0, hoursBetween(desde, ahora)) / 24);
 
-  // 4) recargas despues del ancla
-  const recargado = (recargas || [])
-    .filter((r) => r?.fecha && String(r.fecha).slice(0, 19) >= String(anchor.ts).slice(0, 19))
-    .reduce((s, r) => s + (Number(r.kwh) || 0), 0);
-
-  const saldo = Math.max(0, round2(anchor.kwh + recargado - consumido - estimado));
-  const diasRestantes = dailyAvg > 0 ? saldo / dailyAvg : 0;
-  const horasRestantes = diasRestantes * 24;
-
-  const ultimos30 = medidos.slice(-30).map(([fecha, kwh]) => ({ fecha, kwh: round2(kwh) }));
-  const umbral = Number(config?.umbral ?? DEFAULT_CONFIG.umbral);
-  const recargaHabitual = Number(config?.recarga_habitual ?? DEFAULT_CONFIG.recarga_habitual);
+  const tsAncla = String(anchor.ts);
+  const recargado = recargas.filter((r) => String(r.fecha) > tsAncla).reduce((s, r) => s + Number(r.kwh || 0), 0);
+  const saldo = Math.max(0, round2(Number(anchor.kwh || 0) + recargado - medido - estimado));
+  const dias = avg > 0 ? saldo / avg : 0;
+  const umbral = Number(config.umbral ?? 6);
+  const habitual = Number(config.recarga_habitual ?? 16);
+  const ultimos30 = medidos.slice(-30).reverse();
 
   return {
     ok: true,
     saldo_kwh: saldo,
-    promedio_diario: dailyAvg,
-    dias_restantes: round2(diasRestantes),
-    horas_restantes: Math.round(horasRestantes),
+    promedio_diario: round2(avg),
+    dias_restantes: round2(dias),
+    horas_restantes: Math.round(dias * 24),
     umbral,
-    recarga_habitual: recargaHabitual,
+    recarga_habitual: habitual,
     alerta: saldo < umbral,
-    critico: saldo < umbral / 2,
-    porcentaje: Math.max(0, Math.min(100, round2((saldo / (recargaHabitual || 16)) * 100))),
-    consumido_desde_ancla: round2(consumido + estimado),
-    medido: round2(consumido),
+    critico: saldo <= Math.max(1, umbral / 2),
+    porcentaje: habitual > 0 ? Math.round((saldo / habitual) * 100) : 0,
+    consumido_desde_ancla: round2(medido + estimado),
+    medido: round2(medido),
     estimado: round2(estimado),
     recargado_desde_ancla: round2(recargado),
-    ancla: { kwh: anchor.kwh, ts: anchor.ts, fecha: anchorDate },
-    consumos: ultimos30.reverse(),
-    recargas: (recargas || []).slice(-12).reverse(),
-    hoy: { fecha: hoy, medido: mapa.has(hoy) ? round2(mapa.get(hoy)!) : null, estimado: round2((dailyAvg / 24) * (Number(ahora.slice(11, 13)) + Number(ahora.slice(14, 16)) / 60)) },
-    cliente: lastSync?.cliente ?? null,
-    promedios: lastSync?.promedios ?? null,
-    escala: lastSync?.escala ?? null,
-    medidor: lastSync?.medidor ?? null,
-    ultima_sync: lastSync?.ts ?? null,
-    fecha_hasta: lastSync?.fechaHasta ?? null,
+    ancla: { kwh: Number(anchor.kwh || 0), ts: anchor.ts, fecha: anchorDate },
+    consumos: ultimos30.map(([fecha, kwh]) => ({ fecha, kwh: round2(kwh) })),
+    recargas,
+    hoy: { fecha: hoy, medido: mapa.has(hoy) ? round2(mapa.get(hoy)!) : null, estimado: round2(avg) },
+    cliente: sync?.cliente ?? null,
+    promedios: sync?.promedios ?? null,
+    escala: sync?.escala ?? null,
+    medidor: sync?.lecturas?.[0] ?? null,
+    ultima_sync: sync?.ts ?? null,
+    fecha_hasta: sync?.fechaHasta ?? null,
     ahora,
+    nic: null,
   };
-}
-
-async function leerTodo(base44: any) {
-  const [anchorRec, configRec, syncRec] = await Promise.all([
-    getEstado(base44, 'anchor'),
-    getEstado(base44, 'config'),
-    getEstado(base44, 'sync'),
-  ]);
-  const consumos = await base44.asServiceRole.entities.PkConsumoDia.list({ limit: 400 });
-  const recargas = await base44.asServiceRole.entities.PkRecarga.list({ limit: 200 });
-  return {
-    anchorRec,
-    configRec,
-    syncRec,
-    consumos: (consumos?.items ?? []).map((r: any) => ({ id: r.id, fecha: r.fecha, kwh: Number(r.kwh) || 0, tipo_dia: r.tipo_dia })),
-    recargas: (recargas?.items ?? []).map((r: any) => ({ id: r.id, fecha: r.fecha, kwh: Number(r.kwh) || 0, nota: r.nota, monto_rd: r.monto_rd })),
-  };
-}
-
-async function estadoCompleto(base44: any) {
-  const { anchorRec, configRec, syncRec, consumos, recargas } = await leerTodo(base44);
-  const anchor = anchorRec?.data ?? { kwh: 5, ts: `${drDate()}T14:00:00` };
-  const config = { ...DEFAULT_CONFIG, ...(configRec?.data ?? {}) };
-  return computeState({ anchor, config, consumos, recargas, lastSync: syncRec?.data });
 }
 
 /* ---------------- Push ---------------- */
 
-async function enviarPush(base44: any, payload: any) {
-  const subs = await base44.asServiceRole.entities.PkSuscripcion.filter({ activa: true }, { limit: 50 });
-  const lista = subs?.items ?? [];
-  if (!lista.length) return { enviados: 0, error: 'sin suscripciones' };
-
+async function enviarPush(base44: any, payload: any, nic: string) {
+  const subs = await base44.asServiceRole.entities.PkSuscripcion.filter({ nic, activa: true }, { limit: 50 });
+  const listaSubs = subs?.items ?? [];
+  if (!listaSubs.length) return { enviados: 0, error: 'sin suscripciones' };
   let webpush: any;
   try {
     webpush = (await import('npm:web-push@3.6.7')).default;
@@ -233,10 +174,8 @@ async function enviarPush(base44: any, payload: any) {
   } catch (e) {
     return { enviados: 0, error: 'web-push no disponible: ' + String(e) };
   }
-
   let ok = 0;
-  const fallos: string[] = [];
-  for (const s of lista) {
+  for (const s of listaSubs) {
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -246,171 +185,168 @@ async function enviarPush(base44: any, payload: any) {
       await base44.asServiceRole.entities.PkSuscripcion.update(s.id, { ultimo_envio: drIso() });
     } catch (e: any) {
       const code = e?.statusCode;
-      fallos.push(`${code ?? 'err'}`);
       if (code === 404 || code === 410) {
         await base44.asServiceRole.entities.PkSuscripcion.update(s.id, { activa: false }).catch(() => {});
       }
     }
   }
-  return { enviados: ok, fallos };
+  return { enviados: ok };
 }
 
 /* ---------------- Handler ---------------- */
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-
   const base44 = createClientFromRequest(req);
   let body: any = {};
-  if (req.method === 'POST') {
-    try {
-      body = await req.json();
-    } catch {
-      body = {};
-    }
-  } else {
-    const u = new URL(req.url);
-    body = Object.fromEntries(u.searchParams.entries());
-  }
+  try { body = await req.json(); } catch { body = {}; }
   const action = String(body.action || 'state');
 
   try {
-    if (action === 'state') {
-      return json(await estadoCompleto(base44));
+    /* --- registro --- */
+    if (action === 'registrar') {
+      const whatsapp = String(body.whatsapp || '').replace(/\D/g, '');
+      const nic = String(body.nic || '').replace(/\D/g, '');
+      if (whatsapp.length < 10) return json({ ok: false, error: 'WhatsApp inválido' }, 400);
+      if (nic.length < 5) return json({ ok: false, error: 'Contrato inválido' }, 400);
+
+      const porNic = await base44.asServiceRole.entities.PkCuenta.filter({ nic }, { limit: 1 });
+      const dueno = porNic?.items?.[0];
+      if (dueno && String(dueno.whatsapp) !== whatsapp) {
+        return json({ ok: false, error: 'Ese contrato ya está registrado con otro WhatsApp' }, 409);
+      }
+      const porWa = await base44.asServiceRole.entities.PkCuenta.filter({ whatsapp }, { limit: 1 });
+      const yaWa = porWa?.items?.[0];
+      if (yaWa && String(yaWa.nic) !== nic) {
+        return json({ ok: false, error: 'Ese WhatsApp ya tiene un contrato asociado' }, 409);
+      }
+
+      const telemedido = await nicTelemedido(nic).catch(() => false);
+      let reporte: any = null;
+      try { reporte = await edesurReporte(nic); } catch (e: any) {
+        return json({ ok: false, error: 'No pude leer ese contrato en Edesur: ' + String(e?.message || e) }, 422);
+      }
+
+      const token = crypto.randomUUID().replace(/-/g, '');
+      const cliente = reporte.informacionCliente || {};
+      const data = { whatsapp, nic, token, nombre: cliente.nombreCliente || '', activo: true, telemedido };
+      const cuenta = dueno
+        ? await base44.asServiceRole.entities.PkCuenta.update(dueno.id, data)
+        : await base44.asServiceRole.entities.PkCuenta.create(data);
+
+      const consumos = (reporte.historicoConsumoDiario || []).map((d: any) => ({
+        nic, fecha: String(d.fecha).slice(0, 10), kwh: Number(d.consumo), tipo_dia: String(d.tipoDia), origen: 'edesur',
+      })).filter((d: any) => d.kwh > 0 && d.fecha);
+      const previos = await lista(base44, 'PkConsumoDia', nic);
+      const ya = new Set(previos.map((p: any) => p.fecha));
+      const nuevos = consumos.filter((d: any) => !ya.has(d.fecha));
+      if (nuevos.length) await base44.asServiceRole.entities.PkConsumoDia.bulkCreate(nuevos);
+
+      if (body.kwh !== undefined && body.kwh !== null && body.kwh !== '') {
+        await guardarEstado(base44, nic, 'anchor', { kwh: Number(body.kwh), ts: drIso() });
+      }
+      await guardarEstado(base44, nic, 'sync', {
+        ts: drIso(), fechaHasta: reporte.parametros?.fechaHasta ?? null,
+        cliente, promedios: reporte.habitosConsumo, escala: reporte.escalaPrecios,
+        lecturas: reporte.resumenLecturas || [], mensual: reporte.historicoConsumoMensual || [],
+      });
+      const todo = await leerTodo(base44, nic);
+      const st = calcular(todo.anchor, { ...DEFAULT_CONFIG, ...(todo.config || {}) }, todo.consumos, todo.recargas, todo.sync);
+      return json({ ...st, nic, token, nombre: cliente.nombreCliente || '', telemedido });
+    }
+
+    /* --- autenticación por token --- */
+    const token = String(body.token || '');
+    const cs = await base44.asServiceRole.entities.PkCuenta.filter({ token }, { limit: 1 });
+    const cuenta = cs?.items?.[0];
+    if (!cuenta) return json({ ok: false, error: 'sesion' }, 401);
+    const nic = String(cuenta.nic);
+
+    if (action === 'state' || action === 'estado') {
+      const t = await leerTodo(base44, nic);
+      const st = calcular(t.anchor, { ...DEFAULT_CONFIG, ...(t.config || {}) }, t.consumos, t.recargas, t.sync);
+      return json({ ...st, nic, nombre: cuenta.nombre || '', telemedido: cuenta.telemedido });
     }
 
     if (action === 'sync' || action === 'daily') {
-      const res = await consultarEdesur();
-      if (!res.ok) {
-        const est = await estadoCompleto(base44);
-        return json({ ...est, synced: false, sync_error: res.error });
+      let sync_error: string | null = null;
+      try {
+        const reporte = await edesurReporte(nic);
+        const consumos = (reporte.historicoConsumoDiario || []).map((d: any) => ({
+          nic, fecha: String(d.fecha).slice(0, 10), kwh: Number(d.consumo), tipo_dia: String(d.tipoDia), origen: 'edesur',
+        })).filter((d: any) => d.kwh > 0 && d.fecha);
+        const previos = await lista(base44, 'PkConsumoDia', nic);
+        const ya = new Set(previos.map((p: any) => p.fecha));
+        const nuevos = consumos.filter((d: any) => !ya.has(d.fecha));
+        if (nuevos.length) await base44.asServiceRole.entities.PkConsumoDia.bulkCreate(nuevos);
+        await guardarEstado(base44, nic, 'sync', {
+          ts: drIso(), fechaHasta: reporte.parametros?.fechaHasta ?? null,
+          cliente: reporte.informacionCliente, promedios: reporte.habitosConsumo,
+          escala: reporte.escalaPrecios, lecturas: reporte.resumenLecturas || [],
+          mensual: reporte.historicoConsumoMensual || [],
+        });
+      } catch (e: any) {
+        sync_error = String(e?.message || e);
       }
-      const rep: any = res.reporte;
-      const diarios: any[] = rep.historicoConsumoDiario ?? [];
-
-      // Upsert del consumo diario
-      const existentes = await base44.asServiceRole.entities.PkConsumoDia.list({ limit: 400 });
-      const mapaExist = new Map<string, any>();
-      for (const r of existentes?.items ?? []) mapaExist.set(String(r.fecha).slice(0, 10), r);
-
-      let nuevos = 0;
-      let cambios = 0;
-      for (const d of diarios) {
-        const fecha = String(d.fecha).slice(0, 10);
-        const kwh = Number(d.consumo) || 0;
-        const tipo = d.tipoDia === 0 ? 'fin_semana' : 'entre_semana';
-        const prev = mapaExist.get(fecha);
-        if (!prev) {
-          await base44.asServiceRole.entities.PkConsumoDia.create({ fecha, kwh, tipo_dia: tipo, origen: 'edesur' });
-          nuevos++;
-        } else if (Math.abs((Number(prev.kwh) || 0) - kwh) > 0.004) {
-          await base44.asServiceRole.entities.PkConsumoDia.update(prev.id, { kwh, tipo_dia: tipo, origen: 'edesur' });
-          cambios++;
-        }
+      const t = await leerTodo(base44, nic);
+      const st = calcular(t.anchor, { ...DEFAULT_CONFIG, ...(t.config || {}) }, t.consumos, t.recargas, t.sync);
+      let push = null;
+      if (action === 'daily' && st.alerta) {
+        push = await enviarPush(base44, {
+          title: st.critico ? 'Te quedan pocas horas de luz' : 'Saldo de luz bajo',
+          body: `Te quedan ${st.saldo_kwh} kWh (${Math.round(st.horas_restantes)} h). Contrato ${nic}.`,
+          url: './',
+        }, nic);
       }
-
-      const lastSync = {
-        ts: drIso(),
-        fechaHasta: String(rep.parametros?.fechaHasta ?? '').slice(0, 10),
-        cliente: rep.informacionCliente ?? null,
-        promedios: rep.habitosConsumo ?? null,
-        escala: rep.escalaPrecios ?? null,
-        medidor: (rep.resumenLecturas ?? []).slice(-1)[0] ?? null,
-        mensual: rep.historicoConsumoMensual ?? null,
-      };
-      await setEstado(base44, 'sync', lastSync);
-
-      const est = await estadoCompleto(base44);
-
-      if (action === 'daily') {
-        let push: any = null;
-        if (est.alerta) {
-          push = await enviarPush(base44, {
-            title: est.critico ? 'Prekilo · saldo crítico' : 'Prekilo · saldo bajo',
-            body: `Te quedan ${est.saldo_kwh} kWh (${est.horas_restantes} h de luz). Recarga ${est.recarga_habitual} kWh.`,
-            saldo: est.saldo_kwh,
-            url: '/prekilo/',
-            tag: 'prekilo-alerta',
-          });
-        }
-        return json({ ...est, synced: true, nuevos, cambios, push });
-      }
-      return json({ ...est, synced: true, nuevos, cambios });
+      return json({ ...st, nic, nombre: cuenta.nombre || '', telemedido: cuenta.telemedido, synced: !sync_error, sync_error, push });
     }
 
     if (action === 'recarga') {
-      const kwh = Number(body.kwh || 0);
+      const kwh = Number(body.kwh);
       if (!kwh || kwh <= 0) return json({ ok: false, error: 'kWh inválidos' }, 400);
       await base44.asServiceRole.entities.PkRecarga.create({
-        fecha: drIso(),
-        kwh,
-        monto_rd: body.monto_rd ? Number(body.monto_rd) : undefined,
-        nota: body.nota ? String(body.nota).slice(0, 120) : 'Recarga registrada desde Prekilo',
+        nic, fecha: drIso(), kwh, monto_rd: body.monto_rd ? Number(body.monto_rd) : null,
+        nota: body.nota || 'Recarga registrada en SuperKilo',
       });
-      return json(await estadoCompleto(base44));
+      const t = await leerTodo(base44, nic);
+      return json({ ...calcular(t.anchor, { ...DEFAULT_CONFIG, ...(t.config || {}) }, t.consumos, t.recargas, t.sync), nic });
     }
 
     if (action === 'reanclar') {
       const kwh = Number(body.kwh);
-      if (Number.isNaN(kwh) || kwh < 0) return json({ ok: false, error: 'kWh inválidos' }, 400);
-      const ts = body.ts ? String(body.ts).slice(0, 19) : `${drDate()}T${drIso().slice(11, 19)}`;
-      await setEstado(base44, 'anchor', { kwh, ts });
-      return json(await estadoCompleto(base44));
+      if (Number.isNaN(kwh) || kwh < 0) return json({ ok: false, error: 'Saldo inválido' }, 400);
+      await guardarEstado(base44, nic, 'anchor', { kwh, ts: body.ts || drIso() });
+      const t = await leerTodo(base44, nic);
+      return json({ ...calcular(t.anchor, { ...DEFAULT_CONFIG, ...(t.config || {}) }, t.consumos, t.recargas, t.sync), nic });
     }
 
     if (action === 'config') {
-      const cur = await getEstado(base44, 'config');
-      const cfg = { ...DEFAULT_CONFIG, ...(cur?.data ?? {}) };
-      if (body.umbral !== undefined) cfg.umbral = Number(body.umbral);
-      if (body.recarga_habitual !== undefined) cfg.recarga_habitual = Number(body.recarga_habitual);
-      if (body.promedio_manual !== undefined) cfg.promedio_manual = body.promedio_manual === null ? null : Number(body.promedio_manual);
-      await setEstado(base44, 'config', cfg);
-      return json(await estadoCompleto(base44));
+      const prev = (await leerTodo(base44, nic)).config || {};
+      await guardarEstado(base44, nic, 'config', {
+        ...DEFAULT_CONFIG, ...prev,
+        umbral: body.umbral !== undefined ? Number(body.umbral) : (prev.umbral ?? 6),
+        recarga_habitual: body.recarga_habitual !== undefined ? Number(body.recarga_habitual) : (prev.recarga_habitual ?? 16),
+      });
+      const t = await leerTodo(base44, nic);
+      return json({ ...calcular(t.anchor, { ...DEFAULT_CONFIG, ...(t.config || {}) }, t.consumos, t.recargas, t.sync), nic });
     }
 
     if (action === 'subscribe') {
-      const sub = body.subscription ?? body;
-      if (!sub?.endpoint) return json({ ok: false, error: 'suscripción inválida' }, 400);
-      const p256dh = sub.keys?.p256dh ?? sub.p256dh;
-      const auth = sub.keys?.auth ?? sub.auth;
-      const existentes = await base44.asServiceRole.entities.PkSuscripcion.filter({ endpoint: sub.endpoint }, { limit: 1 });
-      const prev = existentes?.items?.[0];
-      if (prev) {
-        await base44.asServiceRole.entities.PkSuscripcion.update(prev.id, { p256dh, auth, activa: true, agente: String(body.agente || '').slice(0, 160) });
-      } else {
-        await base44.asServiceRole.entities.PkSuscripcion.create({ endpoint: sub.endpoint, p256dh, auth, activa: true, agente: String(body.agente || '').slice(0, 160) });
-      }
-      return json({ ok: true });
+      const sub = body.subscription || {};
+      if (!sub.endpoint) return json({ ok: false, error: 'Suscripción inválida' }, 400);
+      const existe = await base44.asServiceRole.entities.PkSuscripcion.filter({ endpoint: sub.endpoint }, { limit: 1 });
+      const data = {
+        endpoint: sub.endpoint, p256dh: sub.keys?.p256dh ?? '', auth: sub.keys?.auth ?? '',
+        agente: String(body.agente || '').slice(0, 120), activa: true, nic,
+      };
+      if (existe?.items?.[0]) await base44.asServiceRole.entities.PkSuscripcion.update(existe.items[0].id, data);
+      else await base44.asServiceRole.entities.PkSuscripcion.create(data);
+      return json({ ok: true, suscrito: true });
     }
 
-    if (action === 'pushTest') {
-      const est = await estadoCompleto(base44);
-      const r = await enviarPush(base44, {
-        title: 'Prekilo activo',
-        body: `Notificaciones listas. Saldo actual: ${est.saldo_kwh} kWh.`,
-        saldo: est.saldo_kwh,
-        url: '/prekilo/',
-        tag: 'prekilo-test',
-      });
-      return json({ ok: true, ...r, vapid_public: VAPID_PUBLIC });
-    }
+    if (action === 'vapid') return json({ ok: true, publicKey: VAPID_PUBLIC });
 
-    if (action === 'pushCheck') {
-      try {
-        const webpush: any = (await import('npm:web-push@3.6.7')).default;
-        webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
-        const subs = await base44.asServiceRole.entities.PkSuscripcion.filter({ activa: true }, { limit: 50 });
-        return json({ ok: true, webpush: 'cargado', suscripciones: (subs?.items ?? []).length, vapor: VAPID_PUBLIC.slice(0, 12) });
-      } catch (e: any) {
-        return json({ ok: false, error: 'web-push fallo: ' + String(e?.message || e) }, 500);
-      }
-    }
-
-    if (action === 'vapid') {
-      return json({ ok: true, vapid_public: VAPID_PUBLIC, nic: NIC });
-    }
-
-    return json({ ok: false, error: 'acción desconocida: ' + action }, 400);
+    return json({ ok: false, error: 'Acción desconocida' }, 400);
   } catch (e: any) {
     return json({ ok: false, error: String(e?.message || e) }, 500);
   }
