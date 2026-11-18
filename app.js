@@ -961,6 +961,26 @@ function respaldoContrato() {
   if (tp) { tp.textContent = TIPO === 'factura' ? 'Por factura' : 'Prepago'; tp.className = 'pill-tipo ' + (TIPO === 'factura' ? 'factura' : 'prepago'); }
   const tt = document.querySelector('#tarifa-tipo'); if (tt && c.tarifa) tt.textContent = c.tarifa;
   pintarSemaforo();
+  pintarProyeccion();
+  const body = document.querySelector('#ficha-body');
+  const res = document.querySelector('#ficha-resumen');
+  if (res && st.medidor && st.medidor.energiaActiva !== undefined) res.textContent = `Lectura ${f2(st.medidor.energiaActiva)} · ${fFecha(st.medidor.fecha)}`;
+  if (body && !body.dataset.hecho) {
+    body.dataset.hecho = '1';
+    const pr = st.promedios || {};
+    const esc = st.escala || [];
+    body.innerHTML = `
+      <div class="ficha-bloque"><strong class="fb-t">Promedios que calcula Edesur</strong>
+        <div class="fb-row"><span>Entre semana</span><b>${f2(pr.promedioDiasSemana || st.promedio_diario)} kWh/día</b></div>
+        <div class="fb-row"><span>Fin de semana</span><b>${f2(pr.promedioFinSemana || st.promedio_diario)} kWh/día</b></div>
+        <div class="fb-row"><span>General</span><b>${f2(pr.promedioGeneral || st.promedio_diario)} kWh/día</b></div></div>
+      <div class="ficha-bloque"><strong class="fb-t">Escala de precios</strong>
+        ${esc.map((e) => `<div class="fb-row"><span>${e.escala} kWh</span><b>RD$ ${f2(e.precio)}</b></div>`).join('')}</div>
+      <div class="ficha-bloque"><strong class="fb-t">Parámetros del reporte</strong>
+        <div class="fb-row"><span>Consumo publicado hasta</span><b>${fFecha(st.fecha_hasta)}</b></div>
+        <div class="fb-row"><span>Última sincronización</span><b>${st.ultima_sync ? fFecha(st.ultima_sync) + ' · ' + fHora(st.ultima_sync) : '—'}</b></div></div>
+      <p class="muted tiny">La ficha completa (lecturas y cierres) aparece cuando Edesur responde.</p>`;
+  }
 }
 
 function pintarFicha() {
@@ -1038,8 +1058,9 @@ function pintarSemaforo() {
 }
 
 function pintarProyeccion() {
-  const esc = FICHA.escalaPrecios || [];
-  const diario = FICHA.historicoConsumoDiario || [];
+  const st = STATE || {};
+  const esc = (FICHA && FICHA.escalaPrecios) || st.escala || [];
+  const diario = (FICHA && FICHA.historicoConsumoDiario) || (st.consumos || []).map((x) => ({ fecha: x.fecha, consumo: x.kwh }));
   const ahora = new Date(Date.now() - 4 * 3600 * 1000);
   const clave = ahora.toISOString().slice(0, 7);
   const mes = diario.filter((x) => String(x.fecha).slice(0, 7) === clave);
