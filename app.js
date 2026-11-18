@@ -951,6 +951,8 @@ async function cargarFicha() {
 
 function respaldoContrato() {
   const st = STATE; if (!st) return;
+  document.body.classList.toggle('modo-factura', TIPO === 'factura');
+  aplicarModo();
   const c = st.cliente || {};
   const kv = document.querySelector('#kv-cliente');
   if (kv && c.nic) {
